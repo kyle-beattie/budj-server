@@ -12,10 +12,10 @@ services:
     plan: starter
     region: frankfurt
     branch: main
-    buildCommand: npm ci && npm run build
+    buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
     # Runs after the build, before traffic is switched over.
-    preDeployCommand: npm run db:migrate:prod
-    startCommand: npm run start
+    preDeployCommand: pnpm db:migrate:prod
+    startCommand: pnpm start
     healthCheckPath: /healthz
     envVars:
       - key: NODE_ENV

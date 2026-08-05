@@ -10,10 +10,13 @@ cp .env.example .env
 # set DATABASE_URL, and generate a secret:
 openssl rand -base64 32          # -> BETTER_AUTH_SECRET
 
-npm install
-npm run db:migrate               # apply ./drizzle to your database
-npm run dev                      # http://localhost:3000, docs at /docs
+pnpm install
+pnpm db:migrate                  # apply ./drizzle to your database
+pnpm dev                         # http://localhost:3000, docs at /docs
 ```
+
+This project uses **pnpm** (`packageManager` is pinned in `package.json`; run
+`corepack enable` once to have the right version selected automatically).
 
 ## Layout
 
@@ -56,7 +59,7 @@ src/
 │   │   ├── auth.schema.ts    the four tables better-auth owns
 │   │   ├── auth.plugin.ts    fastify.auth + requireAuth / optionalAuth guards
 │   │   ├── auth.routes.ts    forwards /api/auth/* to better-auth's handler
-│   │   └── auth.cli.ts       entry point for `npm run auth:generate`
+│   │   └── auth.cli.ts       entry point for `pnpm auth:generate`
 │   │
 │   ├── user/              → /api/users     profile view of the auth user
 │   ├── accounts/          → /api/accounts  budget accounts
@@ -87,7 +90,7 @@ without a database.
 1. `mkdir src/modules/<name>` and create the files above.
 2. Re-export the tables from `src/db/schema.ts`.
 3. Add one line to the registry in `src/modules/index.ts`.
-4. `npm run db:generate` to produce the migration.
+4. `pnpm db:generate` to produce the migration.
 
 ## Authentication
 
@@ -112,9 +115,9 @@ Adding a better-auth plugin (2FA, organisations, magic links) changes its
 tables. Regenerate and diff:
 
 ```bash
-npm run auth:generate     # writes a reference schema from your config
+pnpm auth:generate     # writes a reference schema from your config
 # reconcile src/modules/auth/auth.schema.ts against it, then:
-npm run db:generate
+pnpm db:generate
 ```
 
 The auth tables are named `auth_user`, `auth_session`, `auth_account` and
@@ -139,18 +142,18 @@ better-auth adapter looks them up by name — don't rename those.
 
 ## Scripts
 
-| Command                  | Does                                                    |
-| ------------------------ | ------------------------------------------------------- |
-| `npm run dev`            | tsx watch, pretty logs                                  |
-| `npm run build`          | `tsc` to `dist/`                                        |
-| `npm start`              | run the build                                           |
-| `npm run typecheck`      | `tsc --noEmit`                                          |
-| `npm test`               | vitest                                                  |
-| `npm run db:generate`    | diff the schema, write a migration to `drizzle/`        |
-| `npm run db:migrate`     | apply pending migrations (local)                        |
-| `npm run db:migrate:prod`| apply pending migrations from `dist/` (Render)          |
-| `npm run db:studio`      | Drizzle Studio                                          |
-| `npm run auth:generate`  | emit better-auth's reference schema for comparison      |
+| Command                   | Does                                               |
+| ------------------------- | -------------------------------------------------- |
+| `pnpm dev`                | tsx watch, pretty logs                             |
+| `pnpm build`              | `tsc` to `dist/`                                   |
+| `pnpm start`              | run the build                                      |
+| `pnpm typecheck`          | `tsc --noEmit`                                     |
+| `pnpm test`               | vitest                                             |
+| `pnpm db:generate`        | diff the schema, write a migration to `drizzle/`   |
+| `pnpm db:migrate`         | apply pending migrations (local)                   |
+| `pnpm db:migrate:prod`    | apply pending migrations from `dist/` (Render)     |
+| `pnpm db:studio`          | Drizzle Studio                                     |
+| `pnpm auth:generate`      | emit better-auth's reference schema for comparison |
 
 ## Tests
 

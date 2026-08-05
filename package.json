@@ -5,8 +5,10 @@
   "description": "Budj API server — Fastify + TypeScript + Drizzle + better-auth",
   "type": "module",
   "main": "dist/server.js",
+  "packageManager": "pnpm@9.15.0",
   "engines": {
-    "node": ">=22"
+    "node": ">=22",
+    "pnpm": ">=9"
   },
   "repository": {
     "type": "git",
@@ -56,11 +58,9 @@
     "typescript": "^5.9.3",
     "vitest": "^4.1.10"
   },
-  "allowScripts": {
-    "esbuild@0.18.20": true,
-    "esbuild@0.25.12": true,
-    "esbuild@0.28.1": true,
-    "@prisma/client": false,
-    "better-sqlite3": false
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "esbuild"
+    ]
   }
 }
