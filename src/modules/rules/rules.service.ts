@@ -1,30 +1,38 @@
 import { NotFoundError } from '../../lib/errors.js';
 import { paginate, type Paginated } from '../../lib/pagination.js';
+import type { Json } from '../../supabase/index.js';
 import { evaluateRules } from './rules.engine.js';
-import type { RulesRepository } from './rules.repository.js';
-import type { RuleRow } from './rules.schema.js';
+import type { RuleRow, RulesRepository } from './rules.repository.js';
 import type {
   CreateRuleInput,
   EvaluateRulesResult,
   ListRulesQuery,
   Rule,
+  RuleAction,
+  RuleCondition,
   TransactionCandidate,
   UpdateRuleInput,
 } from './rules.types.js';
 
+/**
+ * `conditions` and `actions` are jsonb, so PostgREST hands them back as `Json`.
+ * They were validated by Zod on the way in and the column has no other writer,
+ * so the assertion is safe; validating again on every read would cost more than
+ * it catches.
+ */
 function toRule(row: RuleRow): Rule {
   return {
     id: row.id,
-    userId: row.userId,
+    userId: row.user_id,
     name: row.name,
     description: row.description,
     priority: row.priority,
-    isEnabled: row.isEnabled,
-    conditions: row.conditions,
-    actions: row.actions,
-    stopProcessing: row.stopProcessing,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
+    isEnabled: row.is_enabled,
+    conditions: (row.conditions ?? []) as unknown as RuleCondition[],
+    actions: (row.actions ?? []) as unknown as RuleAction[],
+    stopProcessing: row.stop_processing,
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(),
   };
 }
 
@@ -44,22 +52,29 @@ export class RulesService {
 
   async create(userId: string, input: CreateRuleInput): Promise<Rule> {
     const row = await this.repository.create({
-      userId,
+      user_id: userId,
       name: input.name,
       description: input.description ?? null,
       priority: input.priority,
-      isEnabled: input.isEnabled,
-      conditions: input.conditions,
-      actions: input.actions,
-      stopProcessing: input.stopProcessing,
+      is_enabled: input.isEnabled,
+      conditions: input.conditions as unknown as Json,
+      actions: input.actions as unknown as Json,
+      stop_processing: input.stopProcessing,
     });
     return toRule(row);
   }
 
   async update(userId: string, id: string, input: UpdateRuleInput): Promise<Rule> {
     const row = await this.repository.update(userId, id, {
-      ...input,
-      description: input.description === undefined ? undefined : (input.description ?? null),
+      ...(input.name !== undefined ? { name: input.name } : {}),
+      ...(input.description !== undefined ? { description: input.description ?? null } : {}),
+      ...(input.priority !== undefined ? { priority: input.priority } : {}),
+      ...(input.isEnabled !== undefined ? { is_enabled: input.isEnabled } : {}),
+      ...(input.conditions !== undefined
+        ? { conditions: input.conditions as unknown as Json }
+        : {}),
+      ...(input.actions !== undefined ? { actions: input.actions as unknown as Json } : {}),
+      ...(input.stopProcessing !== undefined ? { stop_processing: input.stopProcessing } : {}),
     });
     if (!row) throw new NotFoundError('Rule', id);
     return toRule(row);

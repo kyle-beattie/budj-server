@@ -1,3 +1,4 @@
+import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { errorResponses, idParamSchema } from '../../lib/http.js';
@@ -11,9 +12,15 @@ import {
   updateAccountSchema,
 } from './accounts.types.js';
 
-const accountsRoutes: FastifyPluginAsyncZod = async (fastify) => {
-  const service = new AccountsService(new AccountsRepository(fastify.db));
+/**
+ * Built per request, not once at registration: the Supabase client carries the
+ * caller's access token so PostgREST applies their RLS policies.
+ */
+function serviceFor(request: FastifyRequest): AccountsService {
+  return new AccountsService(new AccountsRepository(request.supabase!));
+}
 
+const accountsRoutes: FastifyPluginAsyncZod = async (fastify) => {
   // Every route in this module requires a session.
   fastify.addHook('onRequest', fastify.requireAuth);
 
@@ -27,7 +34,7 @@ const accountsRoutes: FastifyPluginAsyncZod = async (fastify) => {
         response: { 200: accountListSchema, ...errorResponses },
       },
     },
-    async (request) => service.list(request.auth!.user.id, request.query),
+    async (request) => serviceFor(request).list(request.auth!.userId, request.query),
   );
 
   fastify.get(
@@ -40,7 +47,7 @@ const accountsRoutes: FastifyPluginAsyncZod = async (fastify) => {
         response: { 200: accountSchema, ...errorResponses },
       },
     },
-    async (request) => service.getById(request.auth!.user.id, request.params.id),
+    async (request) => serviceFor(request).getById(request.auth!.userId, request.params.id),
   );
 
   fastify.post(
@@ -54,7 +61,7 @@ const accountsRoutes: FastifyPluginAsyncZod = async (fastify) => {
       },
     },
     async (request, reply) => {
-      const account = await service.create(request.auth!.user.id, request.body);
+      const account = await serviceFor(request).create(request.auth!.userId, request.body);
       return reply.status(201).send(account);
     },
   );
@@ -70,7 +77,7 @@ const accountsRoutes: FastifyPluginAsyncZod = async (fastify) => {
         response: { 200: accountSchema, ...errorResponses },
       },
     },
-    async (request) => service.update(request.auth!.user.id, request.params.id, request.body),
+    async (request) => serviceFor(request).update(request.auth!.userId, request.params.id, request.body),
   );
 
   fastify.delete(
@@ -84,7 +91,7 @@ const accountsRoutes: FastifyPluginAsyncZod = async (fastify) => {
       },
     },
     async (request, reply) => {
-      await service.remove(request.auth!.user.id, request.params.id);
+      await serviceFor(request).remove(request.auth!.userId, request.params.id);
       return reply.status(204).send(null);
     },
   );

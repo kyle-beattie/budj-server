@@ -14,22 +14,22 @@ async function swaggerPlugin(fastify: FastifyInstance): Promise<void> {
       info: {
         title: 'Budj API',
         description:
-          'Budgeting API. Authentication is handled by better-auth under /api/auth — sign in there first, the session cookie carries through to every other route.',
+          'Budgeting API. POST /api/auth/sign-in to get an access token, then send it as `Authorization: Bearer <token>` on every other route. Credentials are proxied to Supabase Auth; data access runs through PostgREST under the caller’s RLS policies.',
         version: '0.1.0',
       },
-      servers: [{ url: config.auth.baseURL }],
+      servers: [{ url: config.server.publicUrl }],
       tags: [
-        { name: 'auth', description: 'Sessions and credentials' },
+        { name: 'auth', description: 'Credentials and tokens, proxied to Supabase Auth' },
         { name: 'user', description: 'The signed-in user’s profile' },
         { name: 'accounts', description: 'Budget accounts' },
         { name: 'rules', description: 'Transaction classification rules' },
       ],
       components: {
         securitySchemes: {
-          sessionCookie: { type: 'apiKey', in: 'cookie', name: 'better-auth.session_token' },
+          bearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
         },
       },
-      security: [{ sessionCookie: [] }],
+      security: [{ bearerAuth: [] }],
     },
     transform: jsonSchemaTransform,
   });

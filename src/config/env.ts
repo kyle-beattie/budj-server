@@ -11,10 +11,6 @@ if (existsSync(envFile)) {
   process.loadEnvFile(envFile);
 }
 
-const booleanish = z
-  .union([z.boolean(), z.enum(['true', 'false', '1', '0'])])
-  .transform((value) => value === true || value === 'true' || value === '1');
-
 const csv = z
   .string()
   .transform((value) =>
@@ -32,14 +28,17 @@ const envSchema = z.object({
     .enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent'])
     .default('info'),
 
-  DATABASE_URL: z.string().min(1, 'DATABASE_URL is required'),
-  DATABASE_SSL: booleanish.default(false),
-  DATABASE_POOL_MAX: z.coerce.number().int().positive().default(10),
+  /** https://<project-ref>.supabase.co */
+  SUPABASE_URL: z.url(),
+  /** Publishable key. Safe to expose; still subject to RLS. */
+  SUPABASE_ANON_KEY: z.string().min(1, 'SUPABASE_ANON_KEY is required'),
+  /** Secret key. Bypasses RLS — server only, never sent to a client. */
+  SUPABASE_SERVICE_ROLE_KEY: z.string().min(1, 'SUPABASE_SERVICE_ROLE_KEY is required'),
 
-  BETTER_AUTH_SECRET: z
-    .string()
-    .min(32, 'BETTER_AUTH_SECRET must be at least 32 characters'),
-  BETTER_AUTH_URL: z.url(),
+  /** Public URL this API is served from; used for auth redirect links. */
+  PUBLIC_URL: z.url(),
+  /** Where Supabase sends users after email confirmation / password reset. */
+  AUTH_REDIRECT_URL: z.url().optional(),
 
   CORS_ORIGINS: csv.default([]),
 });

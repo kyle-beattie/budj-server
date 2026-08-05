@@ -1,7 +1,6 @@
-import { ConflictError, NotFoundError } from '../../lib/errors.js';
+import { NotFoundError } from '../../lib/errors.js';
 import { paginate, type Paginated } from '../../lib/pagination.js';
-import type { AccountRow } from './accounts.schema.js';
-import type { AccountsRepository } from './accounts.repository.js';
+import type { AccountRow, AccountsRepository } from './accounts.repository.js';
 import type {
   Account,
   CreateAccountInput,
@@ -9,25 +8,18 @@ import type {
   UpdateAccountInput,
 } from './accounts.types.js';
 
-/** Postgres unique-violation. */
-const UNIQUE_VIOLATION = '23505';
-
-function isUniqueViolation(error: unknown): boolean {
-  return typeof error === 'object' && error !== null && 'code' in error && error.code === UNIQUE_VIOLATION;
-}
-
 function toAccount(row: AccountRow): Account {
   return {
     id: row.id,
-    userId: row.userId,
+    userId: row.user_id,
     name: row.name,
     type: row.type,
     currency: row.currency,
     balance: row.balance,
     institution: row.institution,
-    isArchived: row.isArchived,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString(),
+    isArchived: row.is_archived,
+    createdAt: new Date(row.created_at).toISOString(),
+    updatedAt: new Date(row.updated_at).toISOString(),
   };
 }
 
@@ -50,38 +42,40 @@ export class AccountsService {
   }
 
   async create(userId: string, input: CreateAccountInput): Promise<Account> {
-    try {
-      const row = await this.repository.create({
-        userId,
+    const row = await this.repository.create(
+      {
+        user_id: userId,
         name: input.name,
         type: input.type,
         currency: input.currency,
         balance: input.balance,
         institution: input.institution ?? null,
-      });
-      return toAccount(row);
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new ConflictError(`You already have an account named '${input.name}'`);
-      }
-      throw error;
-    }
+      },
+      `You already have an account named '${input.name}'`,
+    );
+    return toAccount(row);
   }
 
   async update(userId: string, id: string, input: UpdateAccountInput): Promise<Account> {
-    try {
-      const row = await this.repository.update(userId, id, {
-        ...input,
-        institution: input.institution === undefined ? undefined : (input.institution ?? null),
-      });
-      if (!row) throw new NotFoundError('Account', id);
-      return toAccount(row);
-    } catch (error) {
-      if (isUniqueViolation(error)) {
-        throw new ConflictError(`You already have an account named '${input.name}'`);
-      }
-      throw error;
-    }
+    const row = await this.repository.update(
+      userId,
+      id,
+      {
+        ...(input.name !== undefined ? { name: input.name } : {}),
+        ...(input.type !== undefined ? { type: input.type } : {}),
+        ...(input.currency !== undefined ? { currency: input.currency } : {}),
+        ...(input.balance !== undefined ? { balance: input.balance } : {}),
+        ...(input.institution !== undefined ? { institution: input.institution ?? null } : {}),
+        ...(input.isArchived !== undefined ? { is_archived: input.isArchived } : {}),
+      },
+      // `name` is optional on a patch — don't interpolate `undefined` into the
+      // message when the rename wasn't what collided.
+      input.name
+        ? `You already have an account named '${input.name}'`
+        : 'An account with that name already exists',
+    );
+    if (!row) throw new NotFoundError('Account', id);
+    return toAccount(row);
   }
 
   async remove(userId: string, id: string): Promise<void> {

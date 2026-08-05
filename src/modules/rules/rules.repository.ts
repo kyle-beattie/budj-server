@@ -1,73 +1,91 @@
-import { and, asc, count, eq } from 'drizzle-orm';
-import type { Database } from '../../db/index.js';
 import type { PaginationQuery } from '../../lib/pagination.js';
-import { rules, type NewRuleRow, type RuleRow } from './rules.schema.js';
+import { toAppError, type InsertDto, type Supabase, type Tables, type UpdateDto } from '../../supabase/index.js';
+
+export type RuleRow = Tables<'rules'>;
+export type NewRuleRow = InsertDto<'rules'>;
+export type RulePatch = UpdateDto<'rules'>;
 
 export interface ListRulesFilter extends PaginationQuery {
   userId: string;
   enabledOnly: boolean;
 }
 
+/** See AccountsRepository for why both RLS and the explicit user filter apply. */
 export class RulesRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly supabase: Supabase) {}
 
   async list(filter: ListRulesFilter): Promise<{ rows: RuleRow[]; total: number }> {
-    const where = and(
-      eq(rules.userId, filter.userId),
-      filter.enabledOnly ? eq(rules.isEnabled, true) : undefined,
-    );
+    let query = this.supabase
+      .from('rules')
+      .select('*', { count: 'exact' })
+      .eq('user_id', filter.userId);
 
-    const [rows, [totals]] = await Promise.all([
-      this.db
-        .select()
-        .from(rules)
-        .where(where)
-        .orderBy(asc(rules.priority), asc(rules.createdAt))
-        .limit(filter.limit)
-        .offset(filter.offset),
-      this.db.select({ value: count() }).from(rules).where(where),
-    ]);
+    if (filter.enabledOnly) query = query.eq('is_enabled', true);
 
-    return { rows, total: totals?.value ?? 0 };
+    const { data, error, count } = await query
+      .order('priority', { ascending: true })
+      .order('created_at', { ascending: true })
+      .range(filter.offset, filter.offset + filter.limit - 1);
+
+    if (error) throw toAppError(error, { resource: 'Rule' });
+    return { rows: data ?? [], total: count ?? 0 };
   }
 
   /** Unpaginated, enabled-only — used by the evaluation path. */
   async listEnabled(userId: string): Promise<RuleRow[]> {
-    return this.db
-      .select()
-      .from(rules)
-      .where(and(eq(rules.userId, userId), eq(rules.isEnabled, true)))
-      .orderBy(asc(rules.priority), asc(rules.createdAt));
+    const { data, error } = await this.supabase
+      .from('rules')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('is_enabled', true)
+      .order('priority', { ascending: true })
+      .order('created_at', { ascending: true });
+
+    if (error) throw toAppError(error, { resource: 'Rule' });
+    return data ?? [];
   }
 
   async findById(userId: string, id: string): Promise<RuleRow | undefined> {
-    const [row] = await this.db
-      .select()
-      .from(rules)
-      .where(and(eq(rules.id, id), eq(rules.userId, userId)))
-      .limit(1);
-    return row;
+    const { data, error } = await this.supabase
+      .from('rules')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw toAppError(error, { resource: 'Rule' });
+    return data ?? undefined;
   }
 
   async create(values: NewRuleRow): Promise<RuleRow> {
-    const [row] = await this.db.insert(rules).values(values).returning();
-    return row!;
+    const { data, error } = await this.supabase.from('rules').insert(values).select().single();
+
+    if (error) throw toAppError(error, { resource: 'Rule' });
+    return data;
   }
 
-  async update(userId: string, id: string, values: Partial<NewRuleRow>): Promise<RuleRow | undefined> {
-    const [row] = await this.db
-      .update(rules)
-      .set({ ...values, updatedAt: new Date() })
-      .where(and(eq(rules.id, id), eq(rules.userId, userId)))
-      .returning();
-    return row;
+  async update(userId: string, id: string, values: RulePatch): Promise<RuleRow | undefined> {
+    const { data, error } = await this.supabase
+      .from('rules')
+      .update(values)
+      .eq('user_id', userId)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
+
+    if (error) throw toAppError(error, { resource: 'Rule' });
+    return data ?? undefined;
   }
 
   async remove(userId: string, id: string): Promise<boolean> {
-    const removed = await this.db
-      .delete(rules)
-      .where(and(eq(rules.id, id), eq(rules.userId, userId)))
-      .returning({ id: rules.id });
-    return removed.length > 0;
+    const { data, error } = await this.supabase
+      .from('rules')
+      .delete()
+      .eq('user_id', userId)
+      .eq('id', id)
+      .select('id');
+
+    if (error) throw toAppError(error, { resource: 'Rule' });
+    return (data?.length ?? 0) > 0;
   }
 }

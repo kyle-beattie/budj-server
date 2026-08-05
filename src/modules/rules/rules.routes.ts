@@ -1,3 +1,4 @@
+import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { errorResponses, idParamSchema } from '../../lib/http.js';
@@ -13,9 +14,15 @@ import {
   updateRuleSchema,
 } from './rules.types.js';
 
-const rulesRoutes: FastifyPluginAsyncZod = async (fastify) => {
-  const service = new RulesService(new RulesRepository(fastify.db));
+/**
+ * Built per request, not once at registration: the Supabase client carries the
+ * caller's access token so PostgREST applies their RLS policies.
+ */
+function serviceFor(request: FastifyRequest): RulesService {
+  return new RulesService(new RulesRepository(request.supabase!));
+}
 
+const rulesRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.addHook('onRequest', fastify.requireAuth);
 
   fastify.get(
@@ -28,7 +35,7 @@ const rulesRoutes: FastifyPluginAsyncZod = async (fastify) => {
         response: { 200: ruleListSchema, ...errorResponses },
       },
     },
-    async (request) => service.list(request.auth!.user.id, request.query),
+    async (request) => serviceFor(request).list(request.auth!.userId, request.query),
   );
 
   fastify.get(
@@ -41,7 +48,7 @@ const rulesRoutes: FastifyPluginAsyncZod = async (fastify) => {
         response: { 200: ruleSchema, ...errorResponses },
       },
     },
-    async (request) => service.getById(request.auth!.user.id, request.params.id),
+    async (request) => serviceFor(request).getById(request.auth!.userId, request.params.id),
   );
 
   fastify.post(
@@ -55,7 +62,7 @@ const rulesRoutes: FastifyPluginAsyncZod = async (fastify) => {
       },
     },
     async (request, reply) => {
-      const rule = await service.create(request.auth!.user.id, request.body);
+      const rule = await serviceFor(request).create(request.auth!.userId, request.body);
       return reply.status(201).send(rule);
     },
   );
@@ -71,7 +78,7 @@ const rulesRoutes: FastifyPluginAsyncZod = async (fastify) => {
         response: { 200: ruleSchema, ...errorResponses },
       },
     },
-    async (request) => service.update(request.auth!.user.id, request.params.id, request.body),
+    async (request) => serviceFor(request).update(request.auth!.userId, request.params.id, request.body),
   );
 
   fastify.delete(
@@ -85,7 +92,7 @@ const rulesRoutes: FastifyPluginAsyncZod = async (fastify) => {
       },
     },
     async (request, reply) => {
-      await service.remove(request.auth!.user.id, request.params.id);
+      await serviceFor(request).remove(request.auth!.userId, request.params.id);
       return reply.status(204).send(null);
     },
   );
@@ -100,7 +107,7 @@ const rulesRoutes: FastifyPluginAsyncZod = async (fastify) => {
         response: { 200: evaluateRulesResponseSchema, ...errorResponses },
       },
     },
-    async (request) => service.evaluate(request.auth!.user.id, request.body.transaction),
+    async (request) => serviceFor(request).evaluate(request.auth!.userId, request.body.transaction),
   );
 };
 

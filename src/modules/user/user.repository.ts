@@ -1,30 +1,36 @@
-import { eq } from 'drizzle-orm';
-import type { Database } from '../../db/index.js';
-import { user, type UserRow } from '../auth/auth.schema.js';
+import { toAppError, type Supabase, type Tables, type UpdateDto } from '../../supabase/index.js';
 
-/** Reads and profile-only writes against the better-auth `user` table. */
+export type ProfileRow = Tables<'profiles'>;
+export type ProfilePatch = UpdateDto<'profiles'>;
+
+/**
+ * Reads and writes `public.profiles` — the application-owned record for a user.
+ * `auth.users` belongs to Supabase and is never written to from here; email and
+ * password changes go through the auth module.
+ */
 export class UserRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly supabase: Supabase) {}
 
-  async findById(id: string): Promise<UserRow | undefined> {
-    const [row] = await this.db.select().from(user).where(eq(user.id, id)).limit(1);
-    return row;
+  async findById(id: string): Promise<ProfileRow | undefined> {
+    const { data, error } = await this.supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (error) throw toAppError(error, { resource: 'Profile' });
+    return data ?? undefined;
   }
 
-  async findByEmail(email: string): Promise<UserRow | undefined> {
-    const [row] = await this.db.select().from(user).where(eq(user.email, email)).limit(1);
-    return row;
-  }
+  async updateProfile(id: string, values: ProfilePatch): Promise<ProfileRow | undefined> {
+    const { data, error } = await this.supabase
+      .from('profiles')
+      .update(values)
+      .eq('id', id)
+      .select()
+      .maybeSingle();
 
-  async updateProfile(
-    id: string,
-    values: Partial<Pick<UserRow, 'name' | 'image'>>,
-  ): Promise<UserRow | undefined> {
-    const [row] = await this.db
-      .update(user)
-      .set({ ...values, updatedAt: new Date() })
-      .where(eq(user.id, id))
-      .returning();
-    return row;
+    if (error) throw toAppError(error, { resource: 'Profile' });
+    return data ?? undefined;
   }
 }

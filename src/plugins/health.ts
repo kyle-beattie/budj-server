@@ -1,6 +1,5 @@
 import type { FastifyInstance } from 'fastify';
 import fp from 'fastify-plugin';
-import { sql } from 'drizzle-orm';
 
 /** Liveness and readiness probes. Render polls `/healthz`. */
 async function healthPlugin(fastify: FastifyInstance): Promise<void> {
@@ -11,7 +10,14 @@ async function healthPlugin(fastify: FastifyInstance): Promise<void> {
 
   fastify.get('/readyz', { schema: { hide: true } }, async (_request, reply) => {
     try {
-      await fastify.db.execute(sql`select 1`);
+      // Cheapest round trip that proves PostgREST is reachable and the anon key
+      // is valid. `head` fetches no rows; RLS makes the count 0 for anon, which
+      // is fine — we only care that the request succeeded.
+      const { error } = await fastify.supabaseAnon
+        .from('profiles')
+        .select('id', { head: true, count: 'exact' });
+
+      if (error) throw error;
       return { status: 'ready' };
     } catch (error) {
       fastify.log.error({ err: error }, 'readiness check failed');
@@ -20,4 +26,4 @@ async function healthPlugin(fastify: FastifyInstance): Promise<void> {
   });
 }
 
-export default fp(healthPlugin, { name: 'health', dependencies: ['db'] });
+export default fp(healthPlugin, { name: 'health', dependencies: ['auth'] });

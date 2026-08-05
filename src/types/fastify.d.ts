@@ -1,17 +1,23 @@
 import type { onRequestHookHandler } from 'fastify';
-import type { Database } from '../db/index.js';
-import type { Auth, AuthSession } from '../modules/auth/auth.config.js';
+import type { Supabase } from '../supabase/client.js';
+import type { AuthContext } from '../modules/auth/auth.plugin.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
-    /** Drizzle client bound to the process-wide Postgres pool. */
-    db: Database;
-    /** better-auth instance. Use `fastify.auth.api.*` for credential operations. */
-    auth: Auth;
     /**
-     * onRequest guard that 401s unless a valid session is present.
-     * Runs before body/query validation so an anonymous caller can never
-     * probe a route's schema.
+     * Anon-key client. Used for the auth proxy and JWT verification.
+     * Subject to RLS as an unauthenticated user — never read app tables with it.
+     */
+    supabaseAnon: Supabase;
+    /**
+     * Service-role client. **Bypasses RLS.** Admin operations only, never to
+     * serve a normal request.
+     */
+    supabaseAdmin: Supabase;
+    /**
+     * onRequest guard that 401s unless a valid Supabase access token is present.
+     * Runs before body/query validation so an anonymous caller can never probe
+     * a route's schema. Populates `request.auth` and `request.supabase`.
      */
     requireAuth: onRequestHookHandler;
     /** onRequest hook that populates `request.auth` when present, but never rejects. */
@@ -19,11 +25,13 @@ declare module 'fastify' {
   }
 
   interface FastifyRequest {
+    /** Verified JWT claims. Non-null on any route guarded by `requireAuth`. */
+    auth: AuthContext | null;
     /**
-     * Populated by `requireAuth` / `optionalAuth`.
-     * Non-null for any route guarded by `requireAuth`.
+     * Supabase client bound to the caller's access token, so `auth.uid()`
+     * resolves and RLS applies. Non-null wherever `request.auth` is.
      */
-    auth: AuthSession | null;
+    supabase: Supabase | null;
   }
 }
 

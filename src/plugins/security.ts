@@ -18,7 +18,8 @@ async function securityPlugin(fastify: FastifyInstance): Promise<void> {
 
   await fastify.register(cors, {
     origin: config.cors.origins.length > 0 ? config.cors.origins : false,
-    // Required for better-auth's session cookie to reach a browser client.
+    // Tokens travel in the Authorization header, not cookies, but this keeps
+    // the door open for a browser client that stores them in one.
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     maxAge: 86_400,
@@ -28,7 +29,8 @@ async function securityPlugin(fastify: FastifyInstance): Promise<void> {
     global: true,
     max: isProduction ? 300 : 10_000,
     timeWindow: '1 minute',
-    // better-auth applies its own, stricter limits to sign-in/sign-up.
+    // Supabase Auth applies its own, stricter limits to sign-in/sign-up on top
+    // of this; a 429 from GoTrue is surfaced as RATE_LIMITED.
     keyGenerator: (request) => request.ip,
   });
 }

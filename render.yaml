@@ -1,9 +1,6 @@
-databases:
-  - name: budj-db
-    databaseName: budj
-    user: budj
-    plan: basic-256mb
-    postgresMajorVersion: "17"
+# The database and auth server live in Supabase, so Render runs the API only —
+# there is no Render Postgres instance and no pre-deploy migration step.
+# Migrations are applied with `pnpm db:push` against the linked Supabase project.
 
 services:
   - type: web
@@ -13,8 +10,6 @@ services:
     region: frankfurt
     branch: main
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
-    # Runs after the build, before traffic is switched over.
-    preDeployCommand: pnpm db:migrate:prod
     startCommand: pnpm start
     healthCheckPath: /healthz
     envVars:
@@ -22,20 +17,28 @@ services:
         value: production
       - key: LOG_LEVEL
         value: info
-      - key: DATABASE_URL
-        fromDatabase:
-          name: budj-db
-          property: connectionString
-      # Internal connections inside Render's network don't use TLS.
-      - key: DATABASE_SSL
-        value: "false"
-      - key: DATABASE_POOL_MAX
-        value: "10"
-      - key: BETTER_AUTH_SECRET
-        generateValue: true
-      # Must match the service's public URL, or auth callbacks will be rejected.
-      - key: BETTER_AUTH_URL
+
+      # Must match the service's public URL, or auth redirect links point at
+      # the wrong host.
+      - key: PUBLIC_URL
         value: https://budj-server.onrender.com
-      # Comma-separated browser origins allowed to call this API with cookies.
+
+      # Supabase project settings -> Data API.
+      - key: SUPABASE_URL
+        sync: false
+      # Publishable ("anon") key. Subject to RLS.
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      # Secret ("service_role") key. Bypasses RLS — keep it out of the blueprint
+      # and set it in the dashboard.
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+
+      # Where Supabase sends users after email confirmation / password reset.
+      # Must also be listed under Supabase Auth -> URL Configuration.
+      - key: AUTH_REDIRECT_URL
+        sync: false
+
+      # Comma-separated browser origins allowed to call this API.
       - key: CORS_ORIGINS
         sync: false

@@ -11,3 +11,8 @@ npm-debug.log*
 .DS_Store
 .vscode/
 .idea/
+
+# Supabase CLI local state
+supabase/.branches/
+supabase/.temp/
+supabase/.env
