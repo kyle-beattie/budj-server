@@ -40,7 +40,7 @@ export const createAccountSchema = z.object({
     .string()
     .length(3)
     .transform((value) => value.toUpperCase())
-    .default('GBP'),
+    .default('NZD'),
   balance: moneySchema.default('0'),
   institution: z.string().trim().max(120).nullish(),
 });
