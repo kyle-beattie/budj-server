@@ -42,7 +42,7 @@ change does not attempt it.
 **Goals:**
 
 - A person can go from first launch to a resumable, complete onboarding: signed
-  in, subscribed, bank connected, device registered.
+  in, subscribed, bank connected.
 - The Akahu user access token is stored such that neither the iOS app nor a
   compromised user JWT can reach it.
 - Multiple bank connections per user, added at any time, not only at onboarding.
@@ -57,7 +57,9 @@ change does not attempt it.
 - Transaction ingestion. No Akahu webhook subscription, no `pending_executions`.
 - The rule action redesign. The five annotation actions remain wrong and remain
   in place; this change does not touch `rules`.
-- Verifying Secure Enclave signatures. Only enrolment of the public key.
+- Biometrics of any kind. Face ID to unlock the app is a client-side concern the
+  server never sees (D10), and per-payment biometric approval is not part of the
+  product.
 - Any user-facing surface for viewing transactions or balances.
 
 ## Decisions
@@ -272,23 +274,35 @@ account is a recurring cost with no revenue; and once `add-rule-triggers` lands,
 a connection that still receives transaction events for a non-paying user is a
 system doing work nobody authorised.
 
-### D10. Secure Enclave enrolment happens here; verification happens later
+### D10. Face ID unlocks the app, and the server knows nothing about it
 
-The app generates a P-256 key in the Secure Enclave with `.biometryCurrentSet`
-and registers the public key. This change stores it and does nothing else with
-it.
+Onboarding offers "enable Face ID to unlock Budj". That is implemented entirely
+in the iOS app: the Supabase refresh token is held in the Keychain behind
+`kSecAccessControl` with biometry, so a relaunch resumes the session instead of
+showing a sign-in screen. **No server involvement, no endpoint, no stored state.**
+It is recorded here only so nobody re-derives it as missing server work.
 
-The reason it belongs in onboarding rather than in `add-rule-triggers`: Face ID
-that merely unlocks a Keychain-held refresh token is a *client-side* gate. The
-server sees an ordinary bearer token either way and cannot distinguish a fresh
-biometric from a replayed session. For approving a payment that distinction is
-the whole point, so approval must require a signature over a server-issued
-challenge — and the key has to be enrolled before the first rule exists.
+An earlier draft of this change also enrolled a Secure Enclave P-256 key, so that
+`add-rule-triggers` could require an ES256 signature over a server-issued
+challenge before moving money. That is **dropped from the product**, not merely
+deferred. The reasoning is worth keeping, because it will be re-proposed:
 
-`.biometryCurrentSet` invalidates the key when biometrics change, which is the
-secure choice and obliges a re-enrolment path. Re-enrolment is authorised by a
-valid session; hardening that further is deferred with the rest of the approval
-flow.
+Face ID that unlocks a Keychain-held token is a *client-side* gate — the server
+receives the same bearer token whether a face was presented or not. A signature
+over a server challenge is the only version the server can verify, and it is what
+would make "a stolen session cannot move money" true.
+
+We accept that a valid session can approve a payment. The compensating control is
+Akahu's enduring payment consent, which carries a single-payment limit and a
+periodic limit **enforced by the bank, not by us**, and payees are fixed by rules
+the user already wrote. Damage is bounded by limits the user chose at consent
+time rather than by a signature. This trade is only sound while those limits stay
+modest; if the product later targets larger transfers, revisit before raising
+them.
+
+Consequence for onboarding: no `public_key` column, no key registration endpoint,
+and no `device` step. `device_registrations` exists solely so
+`add-rule-triggers` has somewhere to send an APNs push.
 
 ### D11. Verification tokens are regenerated on demand, never stored
 
@@ -363,7 +377,6 @@ Published on tag from this repository, which is already the source of truth:
   contract/
     openapi.json          generated, already exists
     money-vectors.json    decimal strings → cents, including the rounding cases
-    signing-vectors.json  added by add-rule-triggers
 ```
 
 `money-vectors.json` exists because OpenAPI types money as `string` and nothing

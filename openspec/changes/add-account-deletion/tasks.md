@@ -62,15 +62,17 @@
 
 ## 5. The endpoint
 
-- [ ] 5.1 `POST /api/account/deletion` — issue and verify a challenge signature
-      using the approval path from `add-rule-triggers`, then record the deletion
-      and revoke the session.
+- [ ] 5.0 Settle X4's open question first: whether authentication alone is
+      sufficient confirmation for an irreversible deletion, or whether Supabase
+      reauthentication is required. 5.1 depends on the answer.
+- [ ] 5.1 `POST /api/account/deletion` — `requireAuth` only, resolving the account
+      from the verified claims, then record the deletion and revoke the session.
 - [ ] 5.1a `GET /api/account/deletion/preview` — report whether entitlement is
       active, so the app can warn that deletion will not stop the charging and
       offer a deep link to App Store subscription management. Warn, never block.
 - [ ] 5.2 Confirm no route exists that cancels or reverses a deletion.
-- [ ] 5.3 Tests: valid token without a signature refused; reused nonce refused;
-      anonymous caller gets 401 before validation.
+- [ ] 5.3 Tests: anonymous caller gets 401 before validation; the deleted account
+      is the token's, never a body-supplied identifier.
 
 ## 6. Closing the token window
 

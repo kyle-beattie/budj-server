@@ -90,19 +90,27 @@ window would leave no evidence a deletion was ever requested, and no way to
 distinguish a completed deletion from one that never began. The row outlives the
 user by construction.
 
-### X4. Confirmation is a Secure Enclave signature, not a password
+### X4. Confirmation is the session, plus an unambiguous screen
 
-Deletion reuses the challenge-and-signature path built for payment approval: the
-server issues a nonce, the app signs it in the Secure Enclave, iOS requires Face
-ID.
+Deletion requires authentication and nothing more.
 
-An account that can move money deserves at least the protection moving money
-gets. A password re-prompt does not defend against someone holding an unlocked
-phone; a fresh biometric does. The mechanism already exists, so this is nearly
-free.
+This follows the principle the earlier draft used — *an account that can move
+money deserves at least the protection moving money gets* — through the decision
+in `add-rule-triggers` E11 that moving money needs a session only. The original
+plan was an ES256 signature over a server challenge, reusing the payment approval
+path; that path no longer exists, so "the mechanism already exists, so this is
+nearly free" is false and the justification collapses with it.
 
-Users who signed in with Apple or Google have no password to re-enter anyway,
-which makes the conventional alternative awkward as well as weaker.
+A password re-prompt is not the fallback: users who signed in with Apple or
+Google have no password, which makes it awkward as well as weaker than what it
+replaces.
+
+**Open question.** Deletion is immediate and irreversible (X3), which is a
+sharper edge than a bounded payment — an unlocked phone in the wrong hands costs
+the whole account rather than a capped transfer. If that asymmetry matters,
+Supabase reauthentication (a fresh provider token exchange or a one-time code to
+the address in the JWT) is the option that works for provider and password users
+alike. Not built here; decide before this change is implemented.
 
 ### X5. Everything personal is deleted, including the execution history
 

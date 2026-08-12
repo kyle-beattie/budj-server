@@ -18,6 +18,13 @@ outright, having annotated a transaction row this product never stores.
 - **THEN** it carries a destination account and an amount that is either a fixed
   decimal string or a percentage of the triggering transaction
 
+#### Scenario: A percentage states what it is a percentage of
+
+- **WHEN** a `transfer` effect uses a percentage
+- **THEN** the stored effect names its base explicitly as `original`, rather than
+  leaving it implied, so that a base meaning anything else cannot later be
+  retrofitted onto rules already written
+
 #### Scenario: An ignore effect suppresses the proposal entirely
 
 - **WHEN** a matching rule carries an `ignore` effect

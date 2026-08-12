@@ -19,8 +19,8 @@ request. No column SHALL record which step a user has reached.
 ### Requirement: The status endpoint reports the first incomplete step
 
 `GET /api/onboarding/status` SHALL return the first unsatisfied step in the order
-billing, bank, device, and otherwise `ready`. Push registration SHALL be reported
-as advisory and MUST NOT hold a user back from `ready`.
+billing, bank, and otherwise `ready`. Push registration SHALL be reported as
+advisory and MUST NOT hold a user back from `ready`.
 
 #### Scenario: Newly signed-in user needs billing
 
@@ -32,16 +32,9 @@ as advisory and MUST NOT hold a user back from `ready`.
 - **WHEN** a subscribed user with no stored Akahu token requests status
 - **THEN** the step is `bank`
 
-#### Scenario: Connected user with no enrolled key needs device
-
-- **WHEN** a subscribed user with a stored Akahu token but no enrolled Secure
-  Enclave key requests status
-- **THEN** the step is `device`
-
 #### Scenario: Everything satisfied reports ready
 
-- **WHEN** a subscribed user with a stored Akahu token and an enrolled key
-  requests status
+- **WHEN** a subscribed user with a stored Akahu token requests status
 - **THEN** the step is `ready`
 
 #### Scenario: Missing push registration is advisory only

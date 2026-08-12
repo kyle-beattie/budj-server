@@ -16,27 +16,28 @@ app.
 - **WHEN** the deletion endpoint is called with no `Authorization` header
 - **THEN** the response is 401
 
-### Requirement: Deletion is confirmed by a biometric signature
+### Requirement: Deletion is confirmed by the authenticated owner
 
-Deletion SHALL require an ES256 signature over a server-issued challenge,
-produced by the device key enrolled at onboarding, using the same mechanism as
-payment approval.
+Deletion SHALL require a valid access token belonging to the account being
+deleted, and no cryptographic confirmation, matching what payment approval
+requires. The app is responsible for an explicit, unambiguous confirmation
+screen, since the action is immediate and irreversible.
 
-#### Scenario: A missing or invalid signature refuses deletion
+#### Scenario: The owner deletes with a session alone
 
-- **WHEN** deletion is requested with no signature, or one that fails
-  verification
-- **THEN** the request is rejected with 401 and no deletion is recorded
+- **WHEN** an authenticated user requests deletion of their own account
+- **THEN** the request is accepted and the account is recorded as deleting
 
-#### Scenario: A stolen session alone cannot delete an account
+#### Scenario: A user cannot delete another account
 
-- **WHEN** deletion is requested with a valid access token but no signature
-- **THEN** the request is rejected
+- **WHEN** a deletion request names an account other than the caller's
+- **THEN** it is refused and nothing is deleted
 
-#### Scenario: A nonce cannot be reused
+#### Scenario: Deletion is not inferable from the request body
 
-- **WHEN** a challenge nonce already used for any purpose is presented again
-- **THEN** the request is rejected
+- **WHEN** the endpoint's schema is inspected
+- **THEN** the account deleted is taken from the verified token claims and not
+  from any client-supplied identifier
 
 ### Requirement: Deletion is immediate, irreversible, and has no grace period
 

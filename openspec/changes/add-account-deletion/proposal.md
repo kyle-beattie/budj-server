@@ -21,10 +21,10 @@ keeps billing you. There is no way back.
 
 ## What Changes
 
-- **An in-app deletion endpoint**, confirmed by a Secure Enclave signature — the
-  same control that authorises moving money now authorises destroying the
-  account. This defends against the case a password re-prompt does not: someone
-  holding an unlocked phone.
+- **An in-app deletion endpoint**, requiring authentication only — the same
+  control that authorises moving money authorises destroying the account. Whether
+  an irreversible deletion warrants more than a bounded payment does is X4's open
+  question, and is settled before the endpoint is built.
 - **Deletion is a retried background job, not a request.** Seven external calls
   across three providers, none of which can be rolled back, each made idempotent
   so "already revoked" counts as success.

@@ -2,7 +2,7 @@
 
 `add-onboarding` leaves a paying user with a connected bank, a registered device,
 and nothing to do. This change is the product: a rule fires when money arrives,
-the user is notified, and on biometric approval money moves between their own
+the user is notified, and on approval money moves between their own
 accounts.
 
 The rules module cannot support that today. Its matcher is sound — pure, priority
@@ -34,10 +34,11 @@ redesign costs a migration of zero rows. It will not stay that cheap.
   approval queue, and the iOS app's main read model. It stores a transaction id
   and the user's own instruction — never an amount, merchant, or description
   belonging to Akahu.
-- **Biometric approval.** The device key enrolled during onboarding is finally
-  used: the server issues a challenge, the app signs it in the Secure Enclave,
-  and the signature commits to the exact amount. A stolen session token cannot
-  move money.
+- **Approval is an authenticated tap.** The owner reviews a proposal and approves
+  it with an ordinary session — no challenge, no signature, no device key. The
+  stored amount executes; the client cannot restate it. This accepts that a valid
+  session can move money, bounded by the bank-enforced consent limits below. E11
+  records the reasoning and what would trigger revisiting it.
 - **Akahu enduring payment consent.** Requested at first money-moving rule
   rather than during onboarding, because a consent is bound to one payer account
   and its payees must be known in advance. Rules gain a `pending_consent` state.
@@ -57,9 +58,9 @@ redesign costs a migration of zero rows. It will not stay that cheap.
 - `transaction-ingestion`: Webhook subscription, signature verification, user
   reverse lookup, deduplication, settled-versus-pending handling, and the
   reconciliation sweep.
-- `execution-approval`: The pending execution lifecycle, challenge issue and
-  signature verification, compare-and-swap state transitions, asynchronous
-  payment settlement, and expiry.
+- `execution-approval`: The pending execution lifecycle, owner-authenticated
+  approval and decline, compare-and-swap state transitions, asynchronous payment
+  settlement, and expiry.
 - `payment-consent`: Requesting enduring payment consent, payee verification
   tokens, single and periodic limits, consent reuse by label, and invalidation on
   revocation or disconnection.
@@ -91,7 +92,8 @@ webhook), joining the App Store one. A background worker, which this service has
 never had. `CLAUDE.md` needs both.
 
 **Modules.** New `executions` and `webhooks` modules; substantial rewrite of
-`rules`; additions to `bank-connections` and `devices`.
+`rules`; additions to `bank-connections`. `devices` is unchanged — it registers
+APNs tokens and nothing else.
 
 **Existing code removed.** `rules.types.ts` loses four of five action variants;
 `rules.engine.ts` loses `applyAction`'s annotation folding and its
@@ -99,8 +101,8 @@ never had. `CLAUDE.md` needs both.
 entirely.
 
 **External dependencies.** An APNs client, a crypto library for RSA-SHA256
-verification and ES256 signature verification, and a decimal helper (or hand
-rolled `bigint` cents — likely the latter, it is thirty lines).
+webhook verification, and a decimal helper (or hand rolled `bigint` cents —
+likely the latter, it is thirty lines).
 
 **Risk.** A defect here debits a real person's bank account. The test suite for
 the approval path is not optional and the tasks treat it as blocking.

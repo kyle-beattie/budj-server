@@ -44,8 +44,8 @@
       **unique**, `product_id`, `plan_code`, `status`, `expires_at`) with owner
       select-only RLS — the server writes it, the user never does. The unique
       constraint is what stops one App Store subscription entitling two accounts.
-- [ ] 3.7 Add `device_registrations` (`user_id`, `device_id`, `public_key`,
-      `apns_token`, `enrolled_at`, `revoked_at`) with owner RLS policies.
+- [ ] 3.7 Add `device_registrations` (`user_id`, `device_id`, `apns_token`,
+      `registered_at`, `revoked_at`) with owner RLS policies.
 - [ ] 3.8 Add `apple_grants` (`user_id`, `refresh_token_ciphertext`, timestamps).
       Enable RLS with **no policies**, same as `akahu_tokens`.
 - [ ] 3.8 Add `updated_at` triggers for every new table.
@@ -162,19 +162,18 @@
 
 ## 8. Devices
 
-- [ ] 8.1 `POST /api/devices` — register device id, P-256 public key, optional
-      APNs token. Upsert on `(user_id, device_id)`.
-- [ ] 8.2 Validate the public key is a well-formed P-256 point; reject anything
-      else with 400. Ensure the schema has no field a private key could occupy.
-- [ ] 8.3 `GET /api/devices` and `DELETE /api/devices/:deviceId`, marking revoked
+- [ ] 8.1 `POST /api/devices` — register device id and APNs token. Upsert on
+      `(user_id, device_id)`. No key material: the schema carries an identifier
+      and a token, nothing else.
+- [ ] 8.2 `GET /api/devices` and `DELETE /api/devices/:deviceId`, marking revoked
       rather than deleting.
-- [ ] 8.4 Tests: two devices coexist; re-registering one device replaces its key;
-      revoking someone else's device returns 404.
+- [ ] 8.3 Tests: two devices coexist; re-registering one device replaces its
+      token; revoking someone else's device returns 404.
 
 ## 9. Onboarding status
 
 - [ ] 9.1 `GET /api/onboarding/status` deriving the step in the order billing,
-      bank, device, ready, with push reported as advisory.
+      bank, ready, with push reported as advisory.
 - [ ] 9.2 Guard with `requireAuth` but deliberately **not** with
       `requireSubscription`.
 - [ ] 9.3 Tests: one per step transition; a complete user with no APNs token

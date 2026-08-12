@@ -40,10 +40,10 @@ short of moving money.
   thin, read-only projection of what Akahu reports. Balances, institution as a
   free-text field, and the user-facing create/update/delete endpoints are
   removed. `POST`, `PATCH` and `DELETE /api/accounts` cease to exist.
-- **Device registration.** The iOS app registers an APNs token and a
-  Secure Enclave public key. The public key is not used by this change; it is
-  the enrolment half of the biometric approval that `add-rule-triggers` needs,
-  and it belongs in onboarding because that is when the device is in hand.
+- **Device registration for push.** The iOS app registers an APNs token so that
+  `add-rule-triggers` has somewhere to deliver approval notifications. It is
+  advisory — declining notifications never blocks onboarding. No cryptographic
+  key material is registered or stored (D10).
 - **A derived onboarding status endpoint.** `GET /api/onboarding/status` computes
   the current step from facts already stored. There is no `onboarding_step`
   column to drift out of sync with reality.
@@ -58,8 +58,12 @@ short of moving money.
 
 Explicitly out of scope, and left to `add-rule-triggers`: Akahu enduring payment
 consent, the `payments` scope, transaction webhooks, the pending-execution model,
-the approval endpoint, biometric signature verification, and the redesign of
-rule actions.
+the approval endpoint, and the redesign of rule actions.
+
+Explicitly **not built at all**: per-payment biometric approval. Face ID is used
+by the iOS app to unlock a Keychain-held session and is invisible to this server;
+approving a rule run requires authentication only. D10 records why, and what is
+being relied on instead.
 
 ## Capabilities
 
@@ -74,8 +78,8 @@ rule actions.
 - `bank-connections`: The Akahu authorisation flow, encrypted token custody,
   connection lifecycle across multiple banks, and the account projection that
   replaces the user-owned accounts table.
-- `device-registration`: APNs token and Secure Enclave public key registration,
-  multiple devices per user, and revocation.
+- `device-registration`: APNs token registration, multiple devices per user, and
+  revocation.
 - `onboarding-status`: The derived step machine the iOS app polls on launch to
   decide where to resume.
 - `client-compatibility`: The published contract artifact, the build identifier

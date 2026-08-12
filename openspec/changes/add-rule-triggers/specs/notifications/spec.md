@@ -49,7 +49,7 @@ never ran.
 - **WHEN** APNs rejects a delivery
 - **THEN** the pending execution remains valid, approvable, and listed
 
-### Requirement: Notifications are sent only to enrolled, unrevoked devices
+### Requirement: Notifications are sent only to registered, unrevoked devices
 
 Delivery SHALL target the user's registered devices, skipping revoked
 registrations and those with no APNs token.

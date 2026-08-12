@@ -36,62 +36,100 @@ status.
 - **THEN** each effect records its own outcome and the execution is not reported
   as wholly successful
 
-### Requirement: Approval requires a signature over a server-issued challenge
+### Requirement: Executions are created only by server-side ingestion
 
-Approval SHALL require an ES256 signature, produced by the device key enrolled
-during onboarding, over a canonical encoding of the execution identifier, a
-server-issued nonce, and a digest of the effects including every amount.
+A pending execution SHALL be writable only by the ingestion and approval paths
+running as service role. The owner's database role SHALL hold `select` on
+`pending_executions` and nothing further: no `insert`, no `update`, no `delete`.
 
-#### Scenario: Approval without a valid signature is refused
+The approval endpoint deliberately performs no check that a webhook preceded the
+execution, because the existence of the row *is* that evidence and because the
+reconciliation sweep legitimately creates executions with no webhook at all (E17).
+That reasoning only holds while the row cannot be forged, which is what this
+requirement establishes.
 
-- **WHEN** an approval is submitted with a missing or invalid signature
-- **THEN** the request is rejected with 401 and no payment is initiated
+This inverts the codebase's usual pattern, in which RLS is the owner's write gate.
+Here it is a read-only window onto rows the server wrote — the shape already used
+by `public.profiles`.
 
-#### Scenario: A stolen session alone cannot move money
+#### Scenario: A user cannot insert their own execution
 
-- **WHEN** an approval is submitted with a valid access token but no signature
-- **THEN** the request is rejected and no payment is initiated
+- **WHEN** an authenticated user posts a `pending_executions` row directly to
+  PostgREST, naming their own `user_id`, an invented transaction identifier and
+  an effect transferring money
+- **THEN** the insert is refused by policy, no row exists, and there is
+  consequently nothing to approve
 
-#### Scenario: Tampering with the amount invalidates the signature
+#### Scenario: A user cannot rewrite an execution before approving it
 
-- **WHEN** an approval carries a signature produced over different effect amounts
-  than those stored
-- **THEN** verification fails and no payment is initiated
+- **WHEN** an authenticated user updates a pending execution's `effects`, its
+  `status`, or its `expires_at` directly through PostgREST
+- **THEN** the update is refused by policy and the stored instructions are
+  unchanged
 
-#### Scenario: A nonce cannot be reused
+#### Scenario: A user cannot delete their audit trail
 
-- **WHEN** a nonce that has already been used is presented again
-- **THEN** the request is rejected
+- **WHEN** an authenticated user deletes a resolved execution directly through
+  PostgREST
+- **THEN** the delete is refused by policy and the row remains
 
-#### Scenario: An expired challenge is refused
+#### Scenario: The owner can still read their pending list
 
-- **WHEN** a signature is presented against a nonce issued beyond its time to live
-- **THEN** the request is rejected
+- **WHEN** an authenticated user lists their pending executions
+- **THEN** their own rows are returned, because `select` remains permitted
 
-### Requirement: The canonical signing payload is published as test vectors
+### Requirement: An execution records how it was proposed
 
-The server SHALL publish the canonical encoding as versioned test vectors, and
-MUST verify its own canonicaliser against them in CI, because the client is built
-in a separate repository and a one-byte disagreement fails every approval with an
-error neither side can diagnose alone.
+Each execution SHALL record its provenance — webhook delivery or reconciliation
+sweep — so that the audit trail can answer how a payment came to be proposed, and
+so that a silently dead webhook endpoint is detectable as a shift in that mix.
 
-#### Scenario: Vectors cover the encoding, not the signature
+#### Scenario: Provenance distinguishes the two ingestion paths
 
-- **WHEN** the published vectors are inspected
-- **THEN** each carries inputs, the expected canonical byte string and its
-  digest, and no signature, since device keys differ
+- **WHEN** an execution created from a webhook delivery and one created by the
+  reconciliation sweep are inspected
+- **THEN** each records which path proposed it
 
-#### Scenario: Drift fails the build
+#### Scenario: Both provenances are equally approvable
 
-- **WHEN** the canonical encoding changes without the vectors being regenerated
-- **THEN** the server's own test suite fails
+- **WHEN** the owner approves an execution created by the reconciliation sweep
+- **THEN** it is approved normally, because a missed webhook is a delivery
+  failure and not a reason to strand the user's rule
 
-### Requirement: Declining requires no signature
+### Requirement: Approval requires the authenticated owner and nothing further
+
+Approval SHALL require a valid access token belonging to the execution's owner.
+No signature, device key or biometric assertion is required. The exposure this
+accepts — that a valid session can approve a payment — is bounded by the consent
+limits the bank enforces, and is recorded in design decision E11.
+
+#### Scenario: The owner approves with a session alone
+
+- **WHEN** the authenticated owner approves a pending execution
+- **THEN** the execution moves to `executing` and payment is initiated
+
+#### Scenario: An anonymous approval is refused
+
+- **WHEN** an approval is submitted with no `Authorization` header
+- **THEN** the response is 401 and no payment is initiated
+
+#### Scenario: A user cannot approve another user's execution
+
+- **WHEN** a user approves an execution belonging to someone else
+- **THEN** the response is 404 and no payment is initiated
+
+#### Scenario: The approved amounts are the stored ones
+
+- **WHEN** an approval request carries effect amounts in its body
+- **THEN** they are ignored and the stored effects are what execute, because the
+  amount was resolved at proposal time and the client cannot restate it
+
+### Requirement: Declining requires authentication only
 
 Declining an execution SHALL require authentication only, because refusing to
 move money is always safe.
 
-#### Scenario: Decline succeeds without a signature
+#### Scenario: Owner declines a pending execution
 
 - **WHEN** an authenticated owner declines a pending execution
 - **THEN** the execution moves to `declined` and no payment is initiated
@@ -100,12 +138,14 @@ move money is always safe.
 
 Every transition out of `pending` SHALL be a conditional update that also matches
 the current status, because there is no database transaction available and
-Akahu's payment endpoint documents no idempotency mechanism.
+Akahu's payment endpoint documents no idempotency mechanism. With the signature
+and its single-use nonce removed, this is the *only* remaining defence against a
+double tap initiating two payments.
 
 #### Scenario: Concurrent approvals initiate exactly one payment
 
 - **WHEN** two approval requests for the same execution are processed
-  simultaneously, both with valid signatures
+  simultaneously, both authenticated as the owner
 - **THEN** exactly one payment is initiated and the other request returns the
   current state without error
 

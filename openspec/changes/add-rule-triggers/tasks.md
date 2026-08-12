@@ -25,6 +25,10 @@ integration exists.
       effects and the candidate.
 - [ ] 2.5 Replace `ruleActionSchema` with `notify`, `transfer` and `ignore`.
       Delete `set_category`, `add_tags`, `set_note`, `set_account`.
+      A percentage amount carries `of: 'original'` explicitly (E3). It reads as a
+      redundant field with only one legal value today; it is the hook
+      `add-rule-allocation` needs, and adding it after rules exist is a jsonb
+      migration over live data.
 - [ ] 2.6 Rewrite `applyAction` and `evaluateRulesResponseSchema.outcome`: fold to
       an effect list, and make `ignore` suppress the proposal entirely.
 - [ ] 2.7 Bound the `matches` operator — pattern length cap, nested-quantifier
@@ -36,7 +40,18 @@ integration exists.
 ## 3. The duplicate-payment defence, before anything can pay
 
 - [ ] 3.1 Migration: `pending_executions` with unique `(user_id, akahu_txn_id)`,
-      owner RLS policies, `updated_at` trigger. Append-only from here.
+      a `source` column recording `webhook` or `reconciliation`, and an
+      `updated_at` trigger. Append-only from here.
+      **RLS is select-only for the owner** — one `select` policy on
+      `auth.uid() = user_id`, and deliberately no insert, update or delete
+      policy, the way `public.profiles` is written. Do not copy the four-policy
+      owner-CRUD block from `accounts` or `rules`: an insertable
+      `pending_executions` lets a session forge an execution and approve it,
+      bypassing the rule engine entirely. Carry a comment in the migration saying
+      so, since the omission otherwise reads as an oversight.
+- [ ] 3.1a Tests that a user's own client is refused on direct insert, update and
+      delete of `pending_executions`, and permitted on select. These assert the
+      absence of a policy, which nothing else would catch.
 - [ ] 3.2 Migration: `payment_consents` and the new `rules` lifecycle column.
 - [ ] 3.3 `pnpm db:reset && pnpm types:generate`.
 - [ ] 3.4 Repository with the compare-and-swap transition. Comment that the
@@ -77,7 +92,7 @@ integration exists.
 - [ ] 5.1 APNs client and credentials in `env.ts` and `.env.example`.
 - [ ] 5.2 Thin payload: execution id and generic title only. Test that no amount
       or account name appears in the payload.
-- [ ] 5.3 Deliver to enrolled, unrevoked devices; clear tokens APNs reports as
+- [ ] 5.3 Deliver to registered, unrevoked devices; clear tokens APNs reports as
       invalid.
 - [ ] 5.4 `GET /api/executions?status=pending` — the durable in-app list, plus a
       badge count. Not optional: it is the fallback when push fails.
@@ -110,25 +125,23 @@ incapable of moving money. Worth stopping here and using it.
 
 Section 3.5 must be green before starting.
 
-- [ ] 7.1 `GET /api/executions/:id/challenge` — single-use nonce, 2 minute TTL.
-- [ ] 7.2 Canonical signing payload: execution id, nonce, digest over the effect
-      list including amounts. Define the byte encoding unambiguously and test it
-      against a fixture, because the iOS side must reproduce it exactly.
-- [ ] 7.3 ES256 verification against the enrolled device key.
-- [ ] 7.4 `POST /api/executions/:id/approve` — verify signature, consume nonce,
-      compare-and-swap to `executing`, then initiate payment. In that order.
-- [ ] 7.5 `POST /api/executions/:id/decline` — authentication only, no signature.
-- [ ] 7.6 Payment initiation: fetch the destination account number and holder
+- [ ] 7.1 `POST /api/executions/:id/approve` — authentication only:
+      compare-and-swap to `executing`, then initiate payment. In that order. The
+      CAS is the sole duplicate-payment defence on this path (E11), so write the
+      parallel-approve concurrency test alongside it, not afterwards.
+- [ ] 7.2 Ignore any effect amounts present in the approval body; the stored
+      effects are what execute. Test that a body restating a different amount
+      does not change what is paid.
+- [ ] 7.3 `POST /api/executions/:id/decline` — authentication only.
+- [ ] 7.4 Payment initiation: fetch the destination account number and holder
       name from Akahu at call time. Never store either.
-- [ ] 7.7 Record the Akahu payment id per effect. Do not report success from the
+- [ ] 7.5 Record the Akahu payment id per effect. Do not report success from the
       initiation response.
-- [ ] 7.8 Payment webhook events settle each effect; retain `status_code` and
+- [ ] 7.6 Payment webhook events settle each effect; retain `status_code` and
       `status_text` for failures.
-- [ ] 7.9 Surface a re-enrolment path from the approval error state, for keys
-      invalidated by a biometric change.
-- [ ] 7.10 Tests: valid token without signature refused; tampered amount refused;
-      nonce reuse refused; expired challenge refused; approving a resolved
-      execution refused; another user's execution returns 404.
+- [ ] 7.7 Tests: anonymous approval returns 401; approving a resolved execution
+      refused; another user's execution returns 404; two parallel approvals
+      initiate exactly one payment.
 
 ## 8. Scheduled work
 
@@ -148,13 +161,7 @@ Section 3.5 must be green before starting.
 - [ ] 9.2 Update `CLAUDE.md`: the webhook may-not-pay invariant (E5),
       compare-and-swap as the only concurrency primitive (E6), the ordering rule
       (E7), the background worker, and the new modules.
-- [ ] 9.3 Publish `contract/signing-vectors.json` as a tagged release artifact:
-      inputs, the expected canonical byte string, and its digest. Not signatures
-      — keys differ per device.
-- [ ] 9.4 CI check in this repo asserting the canonicaliser reproduces every
-      vector, so drift fails here before it reaches the client.
-- [ ] 9.5 Tell the iOS repo to pin a contract version and run the same vectors.
-      A one-byte disagreement makes every approval fail with an opaque "invalid
-      signature" that neither side can diagnose alone.
+- [ ] 9.3 Republish `contract/openapi.json` at a new tag; tell the iOS repo the
+      approval endpoint takes no signature and there is no challenge call.
 - [ ] 9.4 `.env.example` complete; `pnpm typecheck && pnpm test` clean from a
       fresh checkout; OpenAPI generates.
