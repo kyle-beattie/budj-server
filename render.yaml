@@ -1,6 +1,15 @@
 # The database and auth server live in Supabase, so Render runs the API only —
 # there is no Render Postgres instance and no pre-deploy migration step.
 # Migrations are applied with `pnpm db:push` against the linked Supabase project.
+#
+# `src/config/env.ts` validates the whole environment at *import* time, so a
+# missing variable is a boot failure with a readable message rather than a 500
+# later. Every `sync: false` entry below must be set in the Render dashboard
+# before the service will start.
+#
+# `docs/key-runbook.md` covers what each secret protects, what is unrecoverable
+# if it is lost, and how to rotate it. Read it before setting or changing any of
+# the credential values.
 
 services:
   - type: web
@@ -23,6 +32,7 @@ services:
       - key: PUBLIC_URL
         value: https://budj-server.onrender.com
 
+      # ---- Supabase ---------------------------------------------------------
       # Supabase project settings -> Data API.
       - key: SUPABASE_URL
         sync: false
@@ -30,7 +40,8 @@ services:
       - key: SUPABASE_ANON_KEY
         sync: false
       # Secret ("service_role") key. Bypasses RLS — keep it out of the blueprint
-      # and set it in the dashboard.
+      # and set it in the dashboard. Five documented call sites use it; a sixth
+      # is the thing to review.
       - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
 
@@ -42,3 +53,88 @@ services:
       # Comma-separated browser origins allowed to call this API.
       - key: CORS_ORIGINS
         sync: false
+
+      # ---- Token custody ----------------------------------------------------
+      # Encrypts the Akahu access token and Apple's refresh token at rest.
+      # Format `v1:<base64 of 32 bytes>`; rotate by prepending `v2:<new>,`.
+      #
+      # LOSING THIS IS UNRECOVERABLE, not merely disruptive. Every user must
+      # reconnect their bank, and every Apple grant is gone for good — the
+      # authorization code that produced it is single-use and issued only at
+      # sign-in, so those users can never be properly deleted until they sign in
+      # again. See docs/key-runbook.md.
+      - key: TOKEN_ENC_KEY
+        sync: false
+
+      # ---- Sign in with Apple -----------------------------------------------
+      # Exchanges the authorization code captured at sign-in for a refresh
+      # token, so accounts can be revoked with Apple at deletion.
+      #
+      # APPLE_PRIVATE_KEY EXPIRES EVERY SIX MONTHS AND FAILS SILENTLY: a failed
+      # exchange is deliberately swallowed so it cannot break sign-in, so the
+      # only symptom is a warning log per sign-up and a growing population of
+      # users who can never be revoked. Set a calendar reminder at five months.
+      - key: APPLE_TEAM_ID
+        sync: false
+      - key: APPLE_KEY_ID
+        sync: false
+      - key: APPLE_PRIVATE_KEY
+        sync: false
+      # The app's bundle identifier.
+      - key: APPLE_CLIENT_ID
+        sync: false
+
+      # ---- App Store Connect ------------------------------------------------
+      # A DIFFERENT credential from the Sign in with Apple key above. Confusing
+      # the two costs half a day of opaque `invalid_client` errors.
+      #
+      # Not used to verify notifications or transactions — those are verified by
+      # a certificate chain to Apple's pinned root and need no credential.
+      - key: APP_STORE_ISSUER_ID
+        sync: false
+      - key: APP_STORE_KEY_ID
+        sync: false
+      - key: APP_STORE_PRIVATE_KEY
+        sync: false
+      - key: APP_STORE_BUNDLE_ID
+        sync: false
+      - key: APP_STORE_APP_APPLE_ID
+        sync: false
+      # Set explicitly rather than left to default, because the default is
+      # `Sandbox` and a production server accepting sandbox purchases is a free
+      # subscription for anyone with Xcode — the two environments issue
+      # overlapping transaction identifiers.
+      #
+      # Sandbox testing (docs/storekit-sandbox-testing.md) needs `Sandbox`, so
+      # run it against a separate service rather than flipping this one.
+      - key: APP_STORE_ENVIRONMENT
+        value: Production
+
+      # ---- Akahu ------------------------------------------------------------
+      - key: AKAHU_APP_TOKEN
+        sync: false
+      - key: AKAHU_APP_SECRET
+        sync: false
+      # Must match what is REGISTERED with Akahu byte-for-byte, trailing slash
+      # included. A mismatch fails the code exchange rather than the redirect,
+      # so it presents as a token problem.
+      - key: AKAHU_REDIRECT_URI
+        sync: false
+
+      # ---- Client version gating --------------------------------------------
+      # Required in production: the server refuses to boot without it, because a
+      # deployment with no minimum has no version gate at all and the gap stays
+      # invisible until the day a bad build needs stopping.
+      #
+      # `1` accepts every build while still REQUIRING the header, so an
+      # unidentifiable client is refused from day one. Raise it as builds ship.
+      - key: MIN_SUPPORTED_BUILD
+        value: 1
+
+      # Inclusive build range refused for money-moving operations only, e.g.
+      # `412-418`. Deliberately separate from the minimum: killing an entire
+      # client version because its amount handling is wrong is worse than
+      # refusing the operations that depend on it. Left unset; set it in the
+      # dashboard during an incident — no deploy or migration required.
+      # - key: BLOCKED_MONEY_BUILDS
+      #   sync: false
