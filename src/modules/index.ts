@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { API_PREFIX, AUTH_PREFIX } from '../config/index.js';
 import authRoutes from './auth/auth.routes.js';
 import accountsRoutes from './accounts/accounts.routes.js';
+import bankConnectionsRoutes from './bank-connections/bank-connections.routes.js';
 import billingRoutes from './billing/billing.routes.js';
 import rulesRoutes from './rules/rules.routes.js';
 import userRoutes from './user/user.routes.js';
@@ -19,6 +20,10 @@ const modules: Array<{ prefix: string; routes: FastifyPluginAsync }> = [
   { prefix: `${API_PREFIX}/accounts`, routes: accountsRoutes as FastifyPluginAsync },
   { prefix: `${API_PREFIX}/rules`, routes: rulesRoutes as FastifyPluginAsync },
   { prefix: `${API_PREFIX}/billing`, routes: billingRoutes as FastifyPluginAsync },
+  {
+    prefix: `${API_PREFIX}/bank-connections`,
+    routes: bankConnectionsRoutes as FastifyPluginAsync,
+  },
 ];
 
 export const registerModules: FastifyPluginAsync = async (fastify) => {
