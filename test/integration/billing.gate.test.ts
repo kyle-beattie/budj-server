@@ -58,6 +58,25 @@ describeIntegration('requireSubscription', () => {
     expect(response.json()).toMatchObject({ error: { code: 'SUBSCRIPTION_REQUIRED' } });
   });
 
+  /**
+   * The converse of the ungated list below. Bank connections and devices are
+   * past the paywall; asserting both directions is what stops the gate quietly
+   * drifting onto, or off, the wrong routes.
+   */
+  it.each([
+    ['GET', '/api/bank-connections'],
+    ['POST', '/api/bank-connections/authorise'],
+    ['GET', '/api/devices'],
+  ])('refuses %s %s without a subscription', async (method, url) => {
+    const response = await app.inject({
+      method: method as 'GET',
+      url,
+      headers: auth(unsubscribed),
+    });
+
+    expect(response.statusCode).toBe(402);
+  });
+
   it('admits a subscribed caller to the same route', async () => {
     const response = await app.inject({
       method: 'GET',
@@ -88,6 +107,8 @@ describeIntegration('requireSubscription', () => {
     ['/api/billing/subscription'],
     ['/api/auth/me'],
     ['/api/users/me'],
+    // The one that would deadlock the app at screen two if it were gated.
+    ['/api/onboarding/status'],
   ])('leaves %s reachable without a subscription', async (url) => {
     const response = await app.inject({ method: 'GET', url, headers: auth(unsubscribed) });
 

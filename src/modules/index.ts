@@ -4,6 +4,8 @@ import authRoutes from './auth/auth.routes.js';
 import accountsRoutes from './accounts/accounts.routes.js';
 import bankConnectionsRoutes from './bank-connections/bank-connections.routes.js';
 import billingRoutes from './billing/billing.routes.js';
+import devicesRoutes from './devices/devices.routes.js';
+import onboardingRoutes from './onboarding/onboarding.routes.js';
 import rulesRoutes from './rules/rules.routes.js';
 import userRoutes from './user/user.routes.js';
 
@@ -24,6 +26,8 @@ const modules: Array<{ prefix: string; routes: FastifyPluginAsync }> = [
     prefix: `${API_PREFIX}/bank-connections`,
     routes: bankConnectionsRoutes as FastifyPluginAsync,
   },
+  { prefix: `${API_PREFIX}/devices`, routes: devicesRoutes as FastifyPluginAsync },
+  { prefix: `${API_PREFIX}/onboarding`, routes: onboardingRoutes as FastifyPluginAsync },
 ];
 
 export const registerModules: FastifyPluginAsync = async (fastify) => {
