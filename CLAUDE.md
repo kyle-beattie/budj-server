@@ -75,8 +75,9 @@ written down, or the rule erodes within a month.
    authenticated, but `billing_subscriptions` is select-only for its owner *so
    that* a user cannot grant themselves a plan. The user id comes from the
    verified JWT; only the write bypasses RLS.
-5. `getAkahuToken(userId)` — *pending*, arrives with the bank-connections
-   module, same custody model.
+5. `AkahuTokenRepository.getAkahuToken(userId)` — a bearer credential for
+   someone's bank. `userId` must come from the verified JWT, never from a
+   request body; that is the constraint keeping this narrow.
 
 ### Tenancy is enforced twice, on purpose
 
@@ -167,6 +168,23 @@ block in the migration is written out by hand and every new table must be added
 to it. `anon` is deliberately absent from it, and `akahu_tokens` / `apple_grants`
 are withheld from `authenticated` too, so a mistakenly added policy still would
 not expose them.
+
+**Revoking Akahu access has a fixed order: revoke with Akahu, *then* delete the
+stored token, then mark connections disconnected.** The ciphertext is the only
+thing that can authenticate the revocation, so deleting it first leaves the
+connection live and Akahu billing for a user who has stopped paying, with
+nothing left to stop it — permanently. When Akahu fails, `AkahuBankAccessRevoker`
+deliberately **keeps** the credential so a retry is possible, while still
+marking local state disconnected.
+
+**Akahu facts that contradict the obvious guess.** Authorisation goes through
+`POST /v1/par` and Akahu returns the URL — building an `oauth.akahu.nz` URL by
+hand puts the scope set in a dashboard rather than in this repo, and makes D7
+unassertable. `GET /v1/connections` is the *institution catalogue*, not a user's
+connections; those come from the nested `connection` on each account. User-scoped
+reads need `Authorization: Bearer <user token>` **and** `X-Akahu-Id: <app token>`
+together. `POST /v1/token` reports failure in `error`, every other endpoint uses
+`message`, and a 200 can still carry `success: false`.
 
 **`requireSubscription` gates everything past identity, and must stay off four
 things.** There is no free tier, so it is a hard boundary rather than a feature

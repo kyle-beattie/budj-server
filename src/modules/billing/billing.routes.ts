@@ -1,7 +1,9 @@
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { errorResponses } from '../../lib/http.js';
+import { config } from '../../config/index.js';
+import { AkahuClient } from '../bank-connections/akahu.client.js';
+import { AkahuBankAccessRevoker } from '../bank-connections/akahu-revoker.js';
 import { AppleJwsVerificationError } from './apple-jws.js';
-import { LocalBankAccessRevoker } from './bank-access-revoker.js';
 import { BillingRepository } from './billing.repository.js';
 import { BillingService } from './billing.service.js';
 import {
@@ -48,7 +50,13 @@ const billingRoutes: FastifyPluginAsyncZod = async (fastify) => {
     async (request) => {
       const service = new AppleNotificationService(
         new BillingRepository(fastify.supabaseAdmin),
-        new LocalBankAccessRevoker(fastify.supabaseAdmin, request.log),
+        // D9 in full: revoke with Akahu, then forget the credential, then mark
+        // connections disconnected. Order matters — see the revoker.
+        new AkahuBankAccessRevoker(
+          fastify.supabaseAdmin,
+          new AkahuClient(config.akahu),
+          request.log,
+        ),
         request.log,
       );
 
