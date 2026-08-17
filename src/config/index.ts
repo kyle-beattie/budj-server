@@ -42,4 +42,13 @@ export const config = {
     privateKey: env.APPLE_PRIVATE_KEY,
     clientId: env.APPLE_CLIENT_ID,
   },
+  /** App Store Connect — a separate credential from `apple` above. */
+  appStore: {
+    issuerId: env.APP_STORE_ISSUER_ID,
+    keyId: env.APP_STORE_KEY_ID,
+    privateKey: env.APP_STORE_PRIVATE_KEY,
+    bundleId: env.APP_STORE_BUNDLE_ID,
+    appAppleId: env.APP_STORE_APP_APPLE_ID,
+    environment: env.APP_STORE_ENVIRONMENT,
+  },
 } as const;

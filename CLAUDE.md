@@ -67,7 +67,11 @@ written down, or the rule erodes within a month.
    session to sign out of.
 2. `AppleGrantRepository` — `apple_grants` carries deny-all RLS and is withheld
    from `authenticated`, so nothing else can write it.
-3. `getAkahuToken(userId)` — *pending*, arrives with the bank-connections
+3. **App Store Server Notifications** (`billing.routes.ts`) — structurally
+   different from the others: Apple holds no Supabase session, so the request is
+   authenticated by a JWS certificate chain rather than a JWT, and `requireAuth`
+   cannot apply. Not user-initiated, returns nothing to a caller.
+4. `getAkahuToken(userId)` — *pending*, arrives with the bank-connections
    module, same custody model.
 
 ### Tenancy is enforced twice, on purpose
@@ -159,6 +163,14 @@ block in the migration is written out by hand and every new table must be added
 to it. `anon` is deliberately absent from it, and `akahu_tokens` / `apple_grants`
 are withheld from `authenticated` too, so a mistakenly added policy still would
 not expose them.
+
+**Never widen Apple JWS verification.** `src/modules/billing/apple-jws.ts` is
+the only thing between the internet and a free subscription. The trust anchor is
+Apple Root CA - G3, pinned as bytes in `apple-root-ca.ts` and compared with
+`Buffer.equals` — **not** by subject name, because a self-signed certificate
+carrying Apple's exact distinguished name takes one `openssl` command to make
+(there is one in the test fixtures). The `rootPem` option exists only so the
+tests can exercise the accept path; production never passes it.
 
 **A migration must not be named `*_init.sql`.** The Supabase CLI reserves it:
 `db reset` prints a one-line `Skipping migration ...` notice, applies nothing,

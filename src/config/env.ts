@@ -73,6 +73,31 @@ const envSchema = z.object({
     .transform((value) => value.replace(/\\n/g, '\n')),
   /** The app's bundle identifier — the `sub` of the client secret. */
   APPLE_CLIENT_ID: z.string().min(1, 'APPLE_CLIENT_ID is required'),
+
+  // ---- App Store Connect / StoreKit -----------------------------------------
+  // A **different** credential from the Sign in with Apple key above. Used to
+  // call the App Store Server API. Notification and transaction verification
+  // needs none of it — that is a certificate chain to Apple's pinned root — so
+  // these are only required once the server calls Apple rather than the reverse.
+  /** Issuer id from App Store Connect → Users and Access → Integrations. */
+  APP_STORE_ISSUER_ID: z.string().min(1, 'APP_STORE_ISSUER_ID is required'),
+  /** Key id of the App Store Connect API `.p8`. */
+  APP_STORE_KEY_ID: z.string().min(1, 'APP_STORE_KEY_ID is required'),
+  /** Contents of the App Store Connect `.p8`, PEM encoded. Literal `\n` allowed. */
+  APP_STORE_PRIVATE_KEY: z
+    .string()
+    .min(1, 'APP_STORE_PRIVATE_KEY is required')
+    .transform((value) => value.replace(/\\n/g, '\n')),
+  /** Bundle id the app ships under; asserted against what Apple signs. */
+  APP_STORE_BUNDLE_ID: z.string().min(1, 'APP_STORE_BUNDLE_ID is required'),
+  /** The app's numeric Apple id. */
+  APP_STORE_APP_APPLE_ID: z.string().min(1, 'APP_STORE_APP_APPLE_ID is required'),
+  /**
+   * Which App Store environment this deployment trusts. Sandbox and production
+   * sign with different chains and carry different transaction ids; accepting
+   * both would let a sandbox purchase entitle a production account.
+   */
+  APP_STORE_ENVIRONMENT: z.enum(['Sandbox', 'Production']).default('Sandbox'),
 });
 
 export type Env = z.infer<typeof envSchema>;

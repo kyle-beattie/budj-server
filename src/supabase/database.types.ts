@@ -150,6 +150,8 @@ export type Database = {
         Row: {
           created_at: string
           expires_at: string | null
+          last_notification_at: string | null
+          last_notification_uuid: string | null
           original_transaction_id: string
           plan_code: string
           product_id: string
@@ -160,6 +162,8 @@ export type Database = {
         Insert: {
           created_at?: string
           expires_at?: string | null
+          last_notification_at?: string | null
+          last_notification_uuid?: string | null
           original_transaction_id: string
           plan_code: string
           product_id: string
@@ -170,6 +174,8 @@ export type Database = {
         Update: {
           created_at?: string
           expires_at?: string | null
+          last_notification_at?: string | null
+          last_notification_uuid?: string | null
           original_transaction_id?: string
           plan_code?: string
           product_id?: string
