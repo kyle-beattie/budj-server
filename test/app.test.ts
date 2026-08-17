@@ -43,6 +43,7 @@ describe('module mounting', () => {
     ['GET', '/api/auth/me'],
     ['POST', '/api/auth/sign-out'],
     ['POST', '/api/auth/password'],
+    ['POST', '/api/auth/apple/grant'],
   ])('%s %s exists and rejects anonymous callers with 401', async (method, url) => {
     const response = await app.inject({ method: method as 'GET', url });
     expect(response.statusCode).toBe(401);
@@ -126,5 +127,29 @@ describe('openapi', () => {
     expect(document).toContain('paymentFrom');
     expect(document).toContain('paymentTo');
     expect(document).not.toContain('balance');
+  });
+
+  /**
+   * OAuth is client-to-Supabase: the app gets an identity token from Apple or
+   * Google and calls `signInWithIdToken` **directly**, and this server only ever
+   * verifies the resulting Supabase JWT (D2).
+   *
+   * The single permitted provider endpoint is the authorization *code* route,
+   * which exists because Apple requires revocation at deletion and Supabase
+   * exposes no refresh token (D13). A route taking an `idToken` would mean
+   * someone had rebuilt the proxy flow D2 rejects, so the contract is asserted
+   * rather than described.
+   */
+  it('exposes no route accepting a provider identity token', async () => {
+    const document = app.swagger() as { paths: Record<string, unknown> };
+
+    const providerPaths = Object.keys(document.paths).filter((path) =>
+      /apple|google|oauth|provider/i.test(path),
+    );
+    expect(providerPaths).toEqual(['/api/auth/apple/grant']);
+
+    const body = JSON.stringify(document.paths['/api/auth/apple/grant']);
+    expect(body).toContain('authorizationCode');
+    expect(body).not.toMatch(/idToken|identityToken|id_token/i);
   });
 });

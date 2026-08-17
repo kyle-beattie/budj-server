@@ -1,3 +1,4 @@
+import { parseKeyring } from '../lib/token-crypto.js';
 import { env, isDevelopment, isProduction, isTest } from './env.js';
 
 export { env, isDevelopment, isProduction, isTest };
@@ -27,5 +28,18 @@ export const config = {
   },
   cors: {
     origins: env.CORS_ORIGINS,
+  },
+  /**
+   * Parsed once, at import, so a malformed key is a startup failure with a
+   * readable message rather than a 500 the first time someone connects a bank.
+   */
+  tokenCrypto: {
+    keyring: parseKeyring(env.TOKEN_ENC_KEY),
+  },
+  apple: {
+    teamId: env.APPLE_TEAM_ID,
+    keyId: env.APPLE_KEY_ID,
+    privateKey: env.APPLE_PRIVATE_KEY,
+    clientId: env.APPLE_CLIENT_ID,
   },
 } as const;

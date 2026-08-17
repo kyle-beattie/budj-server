@@ -58,6 +58,18 @@ normal request; that silently disables the database's half of the tenancy
 guarantee. The anon client is subject to RLS as an unauthenticated user, so it
 must never read application tables either.
 
+**The service-role exceptions are a closed list.** Each one is narrow, keyed by
+a `userId` resolved from the verified JWT, and returns a credential or nothing —
+never a database row to a caller. Adding a fourth needs the same justification
+written down, or the rule erodes within a month.
+
+1. Token revocation (`AuthService.signOut`) — a stateless client holds no
+   session to sign out of.
+2. `AppleGrantRepository` — `apple_grants` carries deny-all RLS and is withheld
+   from `authenticated`, so nothing else can write it.
+3. `getAkahuToken(userId)` — *pending*, arrives with the bank-connections
+   module, same custody model.
+
 ### Tenancy is enforced twice, on purpose
 
 `requireAuth` puts a `createUserClient(token)` on `request.supabase`, so
@@ -106,11 +118,28 @@ and leak the request schema instead of 401. `test/app.test.ts` asserts 401 on
 every guarded route, and asserts 400 on the *public* auth routes to prove they
 stayed unguarded — don't "fix" either by moving the hook.
 
+**Provider credentials at rest go through `src/lib/token-crypto.ts`.** Never
+store a raw Akahu or Apple token, even transiently. Ciphertext is
+`v1:<base64url>` and the version prefix is what makes rotation possible without
+a flag day — put the new key first in `TOKEN_ENC_KEY` and leave the old one
+until nothing references it. The tables holding these (`akahu_tokens`,
+`apple_grants`) have RLS enabled with **no policies** and are withheld from
+`authenticated` in the grants block. Both facts are deliberate; neither is an
+oversight to fix.
+
 **Never write to `auth.users`.** Supabase owns it. `public.profiles` is the
 application-owned record, created by the `handle_new_user` trigger on signup.
 Email and password changes go through the auth module (`POST /api/auth/password`),
 never a direct table write. The profile's `email` is read from the verified JWT
 claims rather than stored, so the two cannot drift.
+
+**OAuth never touches this server.** The iOS app sends its Apple/Google identity
+token straight to Supabase via `signInWithIdToken`; `requireAuth` then covers
+those users unchanged. `POST /api/auth/apple/grant` is the sole provider
+endpoint and it takes an authorization *code*, not an identity token — see
+`docs/ios-integration.md` for why, and for the two one-shot values the app must
+capture at sign-in or lose permanently. `test/app.test.ts` asserts no
+identity-token route exists; don't add one.
 
 **`src/types/fastify.d.ts` must not be imported at runtime.** It's picked up by
 tsconfig's `include`; an `import './types/fastify.js'` resolves to nothing at
