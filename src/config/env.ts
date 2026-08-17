@@ -98,6 +98,19 @@ const envSchema = z.object({
    * both would let a sandbox purchase entitle a production account.
    */
   APP_STORE_ENVIRONMENT: z.enum(['Sandbox', 'Production']).default('Sandbox'),
+
+  // ---- Akahu -----------------------------------------------------------------
+  /** App ID Token (`app_token_...`). Identifies this application to Akahu. */
+  AKAHU_APP_TOKEN: z.string().min(1, 'AKAHU_APP_TOKEN is required'),
+  /** App Secret. Pairs with the app token to start and complete authorisation. */
+  AKAHU_APP_SECRET: z.string().min(1, 'AKAHU_APP_SECRET is required'),
+  /**
+   * Where Akahu sends the user after they authorise. **Must be registered with
+   * Akahu** and match byte-for-byte, including trailing slash — a mismatch
+   * fails the code exchange rather than the redirect, which makes it look like
+   * a token problem.
+   */
+  AKAHU_REDIRECT_URI: z.url(),
 });
 
 export type Env = z.infer<typeof envSchema>;

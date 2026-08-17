@@ -1,5 +1,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
-import { LocalBankAccessRevoker } from '../../src/modules/billing/bank-access-revoker.js';
+import type { AkahuClient } from '../../src/modules/bank-connections/akahu.client.js';
+import { AkahuBankAccessRevoker } from '../../src/modules/bank-connections/akahu-revoker.js';
+import { AkahuTokenRepository } from '../../src/modules/bank-connections/token.repository.js';
 import { BillingRepository } from '../../src/modules/billing/billing.repository.js';
 import {
   cleanupTestUsers,
@@ -13,7 +15,26 @@ const silentLogger = {
   info: () => {},
   warn: () => {},
   debug: () => {},
-} as unknown as ConstructorParameters<typeof LocalBankAccessRevoker>[1];
+} as unknown as ConstructorParameters<typeof AkahuBankAccessRevoker>[2];
+
+/** Records what would have been revoked with Akahu, without calling it. */
+function stubAkahu(): { client: AkahuClient; revoked: string[]; fail?: boolean } {
+  const revoked: string[] = [];
+  const stub = {
+    revoked,
+    client: {
+      revokeToken: async (userToken: string) => {
+        if (stub.fail) throw new Error('Akahu is down');
+        revoked.push(userToken);
+      },
+    } as unknown as AkahuClient,
+  } as { client: AkahuClient; revoked: string[]; fail?: boolean };
+  return stub;
+}
+
+function revokerFor(akahu: AkahuClient) {
+  return new AkahuBankAccessRevoker(serviceClient(), akahu, silentLogger);
+}
 
 /**
  * Entitlement storage and the revocation path, against a real database.
@@ -144,7 +165,7 @@ function describe_revocation(): void {
       type: 'checking',
     });
 
-    await new LocalBankAccessRevoker(admin, silentLogger).revoke(user.id);
+    await revokerFor(stubAkahu().client).revoke(user.id);
 
     const { data: connections } = await admin
       .from('akahu_connections')
@@ -163,7 +184,7 @@ function describe_revocation(): void {
   it('is idempotent', async () => {
     const user = await signUpTestUser();
     const admin = serviceClient();
-    const revoker = new LocalBankAccessRevoker(admin, silentLogger);
+    const revoker = revokerFor(stubAkahu().client);
 
     await admin
       .from('akahu_connections')
@@ -191,8 +212,6 @@ function describe_revocation(): void {
   it('revokes a user with nothing connected without complaint', async () => {
     const user = await signUpTestUser();
 
-    await expect(
-      new LocalBankAccessRevoker(serviceClient(), silentLogger).revoke(user.id),
-    ).resolves.toBeUndefined();
+    await expect(revokerFor(stubAkahu().client).revoke(user.id)).resolves.toBeUndefined();
   });
 }

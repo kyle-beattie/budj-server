@@ -51,4 +51,9 @@ export const config = {
     appAppleId: env.APP_STORE_APP_APPLE_ID,
     environment: env.APP_STORE_ENVIRONMENT,
   },
+  akahu: {
+    appToken: env.AKAHU_APP_TOKEN,
+    appSecret: env.AKAHU_APP_SECRET,
+    redirectUri: env.AKAHU_REDIRECT_URI,
+  },
 } as const;

@@ -4,7 +4,6 @@ export { BillingService } from './billing.service.js';
 export { BillingRepository } from './billing.repository.js';
 export type { SubscriptionRow } from './billing.repository.js';
 export { AppleNotificationService } from './notifications.service.js';
-export { LocalBankAccessRevoker } from './bank-access-revoker.js';
 export type { BankAccessRevoker } from './bank-access-revoker.js';
 export { AppleJwsVerificationError, verifyAppleJws, verifyCertificateChain } from './apple-jws.js';
 export {
