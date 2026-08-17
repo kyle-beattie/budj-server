@@ -2,8 +2,12 @@ import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
 import { z } from 'zod';
 import { errorResponses } from '../../lib/http.js';
 import { createUserClient } from '../../supabase/index.js';
+import { AppleGrantRepository } from './apple.repository.js';
+import { AppleGrantService } from './apple.service.js';
 import { AuthService } from './auth.service.js';
 import {
+  appleGrantResultSchema,
+  appleGrantSchema,
   currentUserSchema,
   refreshSchema,
   requestPasswordResetSchema,
@@ -118,6 +122,37 @@ const authRoutes: FastifyPluginAsyncZod = async (fastify) => {
       await service.updatePassword(createUserClient(request.auth!.accessToken), request.body.password);
       return reply.status(204).send(null);
     },
+  );
+
+  /**
+   * The only provider endpoint on this server, and it deliberately accepts an
+   * authorization *code* rather than an identity token — identity tokens go
+   * straight from the app to Supabase and are never seen here (D2).
+   *
+   * Requires a session: the app calls this immediately after
+   * `signInWithIdToken`, so the code is bound to a user this server has already
+   * verified rather than to whatever the request body claims.
+   */
+  fastify.post(
+    '/apple/grant',
+    {
+      onRequest: [fastify.requireAuth],
+      schema: {
+        tags: ['auth'],
+        summary: 'Store Apple’s authorization code grant for later revocation',
+        description:
+          'Exchanges Apple’s single-use authorization code for a refresh token and stores it encrypted, so the account can be revoked with Apple on deletion. The code expires in about five minutes and cannot be replayed, so it must be sent during sign-in. Returns 200 even when the exchange fails — the caller is already signed in and there is nothing to retry.',
+        body: appleGrantSchema,
+        response: { 200: appleGrantResultSchema, ...errorResponses },
+      },
+    },
+    async (request) =>
+      new AppleGrantService(
+        // Service role: apple_grants has deny-all RLS and is withheld from
+        // `authenticated`, so a user client cannot write it (D4/D5).
+        new AppleGrantRepository(fastify.supabaseAdmin),
+        request.log,
+      ).capture(request.auth!.userId, request.body.authorizationCode),
   );
 
   fastify.get(

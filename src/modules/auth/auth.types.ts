@@ -56,3 +56,28 @@ export const currentUserSchema = z.object({
   email: z.email().nullable(),
   role: z.string().nullable(),
 });
+
+/**
+ * Apple's `authorizationCode`, captured at sign-in.
+ *
+ * Note what this is **not**: an identity token. Those go straight from the app
+ * to Supabase and this server never sees one (D2). This is the separate,
+ * single-use code that can be exchanged for a refresh token, which is the only
+ * way to revoke the user with Apple when they delete their account (D13).
+ */
+export const appleGrantSchema = z.object({
+  authorizationCode: z.string().min(1).max(2048),
+});
+export type AppleGrantInput = z.infer<typeof appleGrantSchema>;
+
+/**
+ * Always 200, even when the exchange failed. The user is signed in either way,
+ * and there is no retry to offer — the code is spent. `stored: false` means
+ * this account cannot be revoked with Apple at deletion.
+ */
+export const appleGrantResultSchema = z.object({
+  stored: z.boolean(),
+  /** Apple's error code when `stored` is false, e.g. `invalid_grant`. */
+  reason: z.string().optional(),
+});
+export type AppleGrantResult = z.infer<typeof appleGrantResultSchema>;
