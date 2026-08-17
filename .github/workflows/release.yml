@@ -20,9 +20,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # No `version` input: pnpm/action-setup@v4 reads `packageManager` from
+      # package.json, and errors out if both are given. Keeping it in one place
+      # means CI and local development cannot drift onto different pnpm
+      # versions, which is the failure this input was inviting.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 9
 
       - uses: actions/setup-node@v4
         with:
