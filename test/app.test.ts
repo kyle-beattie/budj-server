@@ -47,6 +47,9 @@ describe('module mounting', () => {
     ['GET', '/api/billing/plans'],
     ['GET', '/api/billing/subscription'],
     ['POST', '/api/billing/transaction'],
+    ['GET', '/api/bank-connections'],
+    ['POST', '/api/bank-connections/authorise'],
+    ['POST', '/api/bank-connections/callback'],
   ])('%s %s exists and rejects anonymous callers with 401', async (method, url) => {
     const response = await app.inject({ method: method as 'GET', url });
     expect(response.statusCode).toBe(401);
@@ -147,6 +150,29 @@ describe('openapi', () => {
     expect(paths).toContain('/api/billing/plans');
     expect(paths).toContain('/api/billing/subscription');
     expect(paths).toContain('/api/billing/transaction');
+    expect(paths).toContain('/api/bank-connections');
+    expect(paths).toContain('/api/bank-connections/authorise');
+    expect(paths).toContain('/api/bank-connections/callback');
+  });
+
+  /**
+   * Akahu redirects a browser back with `code` and `state`. The obvious shape
+   * is a GET handler identifying the user from the state alone, which makes
+   * that state the only thing between a leaked redirect URL and a stranger's
+   * bank being attached to your account. The native app intercepts the redirect
+   * and posts the code with its own token instead, so the exchange is bound
+   * twice. A GET callback appearing here means someone rebuilt the weaker form.
+   */
+  it('exposes no unauthenticated bank callback', async () => {
+    const document = app.swagger() as { paths: Record<string, Record<string, unknown>> };
+
+    expect(Object.keys(document.paths['/api/bank-connections/callback'] ?? {})).toEqual(['post']);
+
+    const response = await app.inject({
+      method: 'GET',
+      url: '/api/bank-connections/callback?code=x&state=y',
+    });
+    expect(response.statusCode).toBe(404);
   });
 
   /**

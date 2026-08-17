@@ -65,6 +65,30 @@ export type Database = {
           },
         ]
       }
+      akahu_auth_states: {
+        Row: {
+          consumed_at: string | null
+          created_at: string
+          expires_at: string
+          state: string
+          user_id: string
+        }
+        Insert: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at: string
+          state: string
+          user_id: string
+        }
+        Update: {
+          consumed_at?: string | null
+          created_at?: string
+          expires_at?: string
+          state?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       akahu_connections: {
         Row: {
           connected_at: string

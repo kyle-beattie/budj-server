@@ -203,6 +203,12 @@ carrying Apple's exact distinguished name takes one `openssl` command to make
 (there is one in the test fixtures). The `rootPem` option exists only so the
 tests can exercise the accept path; production never passes it.
 
+**`grant … on all tables in schema public` is a snapshot, not a rule.** It
+covers the tables that existed when it ran and nothing created afterwards, so
+**every new migration must grant on its own tables**. With RLS enabled and no
+policies the symptom is `42501 permission denied`, which reads like an RLS
+problem and is not one. `00000000000003` is the worked example.
+
 **A migration must not be named `*_init.sql`.** The Supabase CLI reserves it:
 `db reset` prints a one-line `Skipping migration ...` notice, applies nothing,
 and exits 0. The initial schema is `00000000000001_initial_schema.sql` for this

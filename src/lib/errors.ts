@@ -46,6 +46,19 @@ export class PaymentRequiredError extends AppError {
   }
 }
 
+/**
+ * The caller is subscribed, but their plan does not stretch this far.
+ *
+ * Distinct from 402: they have paid, so telling them to buy a subscription is
+ * wrong. The app needs to offer an upgrade instead, which is a different
+ * screen and a different message.
+ */
+export class PlanLimitExceededError extends AppError {
+  constructor(message: string, details?: unknown) {
+    super(message, { statusCode: 403, code: 'PLAN_LIMIT_EXCEEDED', details });
+  }
+}
+
 export class ForbiddenError extends AppError {
   constructor(message = 'You do not have access to this resource') {
     super(message, { statusCode: 403, code: 'FORBIDDEN' });

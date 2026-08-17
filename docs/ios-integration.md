@@ -83,6 +83,40 @@ backfill: recovering means forcing all of them to re-authenticate.
 Send the code on **every** Apple sign-in, not only the first. Re-authorising
 replaces the stored grant, which keeps it fresh at no cost.
 
+## Connecting a bank
+
+The server is always in the middle: the app never holds an Akahu token and never
+calls Akahu.
+
+1. `POST /api/bank-connections/authorise` → `{ "authorisationUrl": "..." }`
+2. Open that URL in an **`ASWebAuthenticationSession`**, with the callback scheme
+   matching `AKAHU_REDIRECT_URI`.
+3. Akahu redirects back with `code` and `state`. Intercept it in the session —
+   do **not** let it reach a browser.
+4. `POST /api/bank-connections/callback` with `{ code, state }` **and the user's
+   bearer token**.
+
+Step 4 is authenticated on purpose. If the server accepted the redirect directly
+on an unauthenticated `GET`, the `state` would be the only thing standing between
+a leaked redirect URL and someone else's bank being attached to your account.
+Posting it back with the session token binds the exchange twice.
+
+The `state` is **single-use and expires in 15 minutes.** A replayed callback is
+refused, so retry by starting again at step 1 rather than reposting.
+
+Two errors the app should handle distinctly:
+
+- `402 SUBSCRIPTION_REQUIRED` — not subscribed. Send them to the purchase screen.
+- `403 PLAN_LIMIT_EXCEEDED` — subscribed, but at their plan's connection limit.
+  Offer an upgrade; telling them to subscribe is wrong, they already have.
+  `details` carries `limit`, `current` and `planCode`.
+
+Accounts arrive through `GET /api/accounts` once the callback succeeds. They are
+read-only — there is no create, update or delete — and carry **no balance**,
+because none is stored. `paymentFrom` and `paymentTo` are independent: a credit
+card commonly has `paymentFrom: true` and `paymentTo: false`, and a rule editor
+must respect both.
+
 ## Sign in with Apple is not optional
 
 Offering Google without an equivalent privacy-preserving option is itself an App
