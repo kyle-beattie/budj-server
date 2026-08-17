@@ -37,7 +37,6 @@ describe('module mounting', () => {
     ['GET', '/api/users/me'],
     ['PATCH', '/api/users/me'],
     ['GET', '/api/accounts'],
-    ['POST', '/api/accounts'],
     ['GET', '/api/rules'],
     ['POST', '/api/rules'],
     ['POST', '/api/rules/evaluate'],
@@ -57,6 +56,21 @@ describe('module mounting', () => {
       headers: { authorization: 'Basic dXNlcjpwYXNz' },
     });
     expect(response.statusCode).toBe(401);
+  });
+
+  /**
+   * Accounts are a read-only projection of what Akahu reports. These verbs used
+   * to exist and were asserted as guarded; they must now not exist at all. A
+   * 404 rather than a 401 is the point — there is no route to authenticate to.
+   */
+  it.each([
+    ['POST', '/api/accounts'],
+    ['PATCH', '/api/accounts/00000000-0000-0000-0000-000000000000'],
+    ['DELETE', '/api/accounts/00000000-0000-0000-0000-000000000000'],
+  ])('%s %s no longer exists', async (method, url) => {
+    const response = await app.inject({ method: method as 'POST', url, payload: {} });
+    expect(response.statusCode).toBe(404);
+    expect(response.json()).toMatchObject({ error: { code: 'NOT_FOUND' } });
   });
 
   it.each([
@@ -97,5 +111,20 @@ describe('openapi', () => {
     expect(paths).toContain('/api/auth/me');
 
     expect(document.components?.securitySchemes).toHaveProperty('bearerAuth');
+  });
+
+  /**
+   * Balances are not stored, so they must not be describable either. This
+   * asserts the *contract* rather than a response body: the iOS client is
+   * generated from this document, and a `balance` property here would produce a
+   * field the server can never populate.
+   */
+  it('describes accounts without a balance', async () => {
+    const document = JSON.stringify(app.swagger());
+
+    expect(document).toContain('akahuAccountId');
+    expect(document).toContain('paymentFrom');
+    expect(document).toContain('paymentTo');
+    expect(document).not.toContain('balance');
   });
 });

@@ -1,19 +1,20 @@
 import type { PaginationQuery } from '../../lib/pagination.js';
-import { toAppError, type InsertDto, type Supabase, type Tables, type UpdateDto } from '../../supabase/index.js';
+import { toAppError, type Supabase, type Tables } from '../../supabase/index.js';
 import type { AccountType } from './accounts.types.js';
 
 export type AccountRow = Tables<'accounts'>;
-export type NewAccountRow = InsertDto<'accounts'>;
-export type AccountPatch = UpdateDto<'accounts'>;
 
 export interface ListAccountsFilter extends PaginationQuery {
   userId: string;
   type?: AccountType | undefined;
-  includeArchived: boolean;
+  connectionId?: string | undefined;
+  includeDisconnected: boolean;
 }
 
 /**
- * Data access only — no business rules, no HTTP concepts.
+ * Read-only data access. Accounts are written by the connection sync in
+ * `bank-connections`, never through this module — there is deliberately no
+ * `create`, `update` or `remove` here.
  *
  * The client is built per request and carries the user's JWT, so RLS already
  * restricts every statement to rows they own. The explicit `.eq('user_id', …)`
@@ -30,7 +31,8 @@ export class AccountsRepository {
       .eq('user_id', filter.userId);
 
     if (filter.type) query = query.eq('type', filter.type);
-    if (!filter.includeArchived) query = query.eq('is_archived', false);
+    if (filter.connectionId) query = query.eq('connection_id', filter.connectionId);
+    if (!filter.includeDisconnected) query = query.is('disconnected_at', null);
 
     const { data, error, count } = await query
       .order('name', { ascending: true })
@@ -50,42 +52,5 @@ export class AccountsRepository {
 
     if (error) throw toAppError(error, { resource: 'Account' });
     return data ?? undefined;
-  }
-
-  async create(values: NewAccountRow, conflictMessage: string): Promise<AccountRow> {
-    const { data, error } = await this.supabase.from('accounts').insert(values).select().single();
-
-    if (error) throw toAppError(error, { resource: 'Account', conflictMessage });
-    return data;
-  }
-
-  async update(
-    userId: string,
-    id: string,
-    values: AccountPatch,
-    conflictMessage: string,
-  ): Promise<AccountRow | undefined> {
-    const { data, error } = await this.supabase
-      .from('accounts')
-      .update(values)
-      .eq('user_id', userId)
-      .eq('id', id)
-      .select()
-      .maybeSingle();
-
-    if (error) throw toAppError(error, { resource: 'Account', conflictMessage });
-    return data ?? undefined;
-  }
-
-  async remove(userId: string, id: string): Promise<boolean> {
-    const { data, error } = await this.supabase
-      .from('accounts')
-      .delete()
-      .eq('user_id', userId)
-      .eq('id', id)
-      .select('id');
-
-    if (error) throw toAppError(error, { resource: 'Account' });
-    return (data?.length ?? 0) > 0;
   }
 }
