@@ -124,6 +124,74 @@ describe('module mounting', () => {
   });
 });
 
+/**
+ * A completeness check, rather than another list to keep up to date.
+ *
+ * The assertions above name specific routes, so a route added later is simply
+ * absent from them and nobody notices. This walks every path the OpenAPI
+ * document actually contains and requires each one to be either deliberately
+ * public or rejecting anonymous callers — so a new route forces the decision to
+ * be made explicitly, here, in this file.
+ */
+describe('every route makes an explicit decision about anonymous callers', () => {
+  /** Public by design. Each entry needs a reason that survives review. */
+  const PUBLIC_ROUTES = new Map<string, string>([
+    ['POST /api/auth/sign-up', 'creating an account cannot require one'],
+    ['POST /api/auth/sign-in', 'likewise'],
+    ['POST /api/auth/refresh', 'the access token has expired by definition'],
+    ['POST /api/auth/password/reset', 'the caller cannot sign in — that is the problem'],
+    [
+      'POST /api/billing/apple/notifications',
+      'Apple holds no Supabase session; verified by JWS certificate chain instead',
+    ],
+  ]);
+
+  it('guards or explicitly exempts each one', async () => {
+    const document = app.swagger() as {
+      paths: Record<string, Record<string, unknown>>;
+    };
+
+    const unaccounted: string[] = [];
+    let checked = 0;
+
+    for (const [path, operations] of Object.entries(document.paths)) {
+      for (const method of Object.keys(operations)) {
+        const route = `${method.toUpperCase()} ${path}`;
+        if (PUBLIC_ROUTES.has(route)) continue;
+
+        const response = await app.inject({
+          method: method.toUpperCase() as 'GET',
+          // Path parameters need *something* substituted to reach the handler.
+          url: path.replace(/\{[^}]+\}/g, '00000000-0000-0000-0000-000000000000'),
+          payload: method === 'get' || method === 'delete' ? undefined : {},
+        });
+
+        checked += 1;
+        if (response.statusCode !== 401) unaccounted.push(`${route} → ${response.statusCode}`);
+      }
+    }
+
+    expect(unaccounted).toEqual([]);
+    // Guard against passing vacuously: an empty document would satisfy the
+    // assertion above while proving nothing.
+    expect(checked).toBeGreaterThan(20);
+  });
+
+  it('lists no public route that has since been guarded', async () => {
+    const stale: string[] = [];
+
+    for (const route of PUBLIC_ROUTES.keys()) {
+      const [method, path] = route.split(' ') as [string, string];
+      const response = await app.inject({ method: method as 'GET', url: path, payload: {} });
+
+      // A public route reaches validation or succeeds; it never 401s.
+      if (response.statusCode === 401) stale.push(route);
+    }
+
+    expect(stale).toEqual([]);
+  });
+});
+
 describe('error handling', () => {
   it('returns the standard envelope for unknown routes', async () => {
     const response = await app.inject({ method: 'GET', url: '/api/nope' });

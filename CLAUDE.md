@@ -30,11 +30,12 @@ pnpm vitest run -t 'halts on stopProcessing'
 `pnpm types:generate` targets the **linked remote** project. For a local stack
 use `pnpm types:generate:local` — the `--linked` form cannot read it.
 
-**Tests require a `.env`.** `src/config/env.ts` validates `process.env` at *import*
-time and throws, so a missing `SUPABASE_URL` / `SUPABASE_ANON_KEY` /
-`SUPABASE_SERVICE_ROLE_KEY` / `PUBLIC_URL` fails the suite at module load with a
-confusing stack. Copy `.env.example` first — placeholder values are fine, the
-tests make no network call.
+**Tests require a `.env`.** `src/config/env.ts` validates `process.env` at
+*import* time and throws, so **any** missing required variable fails the suite at
+module load with a confusing stack rather than a readable assertion. Copy
+`.env.example` first — placeholder values are fine, and a clean checkout passes
+`pnpm test` with them unchanged (CI does exactly that). No unit or wiring test
+makes a network call; the integration suite skips itself without a local stack.
 
 ## Architecture
 
@@ -93,9 +94,33 @@ on every query. This redundancy is deliberate — don't remove either half as
 `src/modules/index.ts` is the single place that knows which modules exist and
 where they mount. Each is registered in its own encapsulated Fastify scope.
 
-Adding a module: write the table + RLS policies + `updated_at` trigger in a new
-`supabase/migrations/*.sql`, `pnpm db:reset`, `pnpm types:generate`, create
-`src/modules/<name>/`, then add one line to the registry.
+| Module             | Mount                   | Guards                          |
+| ------------------ | ----------------------- | ------------------------------- |
+| `auth`             | `/api/auth`             | mixed — see below               |
+| `user`             | `/api/users`            | auth                            |
+| `accounts`         | `/api/accounts`         | auth (read-only projection)     |
+| `rules`            | `/api/rules`            | auth + subscription             |
+| `billing`          | `/api/billing`          | mixed — notifications are open  |
+| `bank-connections` | `/api/bank-connections` | auth + subscription             |
+| `devices`          | `/api/devices`          | auth + subscription             |
+| `onboarding`       | `/api/onboarding`       | auth **only**, deliberately     |
+
+The two "mixed" entries are the ones to read before changing: `auth` is public
+except `/me`, `/sign-out`, `/password` and `/apple/grant`; `billing` gates
+nothing, because the App Store notification endpoint cannot hold a JWT and the
+catalogue, subscription read and purchase submission must all be reachable
+before a user has paid.
+
+Adding a module:
+
+1. New `supabase/migrations/*.sql` with the table, RLS policies, `updated_at`
+   trigger — **and a `grant` for the roles that need it**, because the initial
+   migration's blanket grant was a snapshot and does not cover new tables.
+2. `pnpm db:reset` then `pnpm types:generate:local` (`types:generate` targets the
+   linked remote project).
+3. Create `src/modules/<name>/` and add one line to the registry.
+4. Add the routes to `test/app.test.ts`, which asserts every guarded route
+   rejects an anonymous caller before validation.
 
 ### Layering inside a domain module
 
@@ -112,8 +137,35 @@ Table structure is **not** in the module — Postgres owns it and
 `src/supabase/database.types.ts` is generated from it. Never hand-edit that file.
 
 Services take a `userId` argument rather than a `FastifyRequest`, which keeps
-them testable and unable to act on the wrong user. `rules` adds
-`rules.engine.ts`: the matcher, kept pure (no I/O, no clock) so it tests directly.
+them testable and unable to act on the wrong user.
+
+**Where a decision is hard to get right, it is extracted as a pure function with
+no I/O and no clock**, so the whole table can be tested directly rather than
+through HTTP and a database:
+
+- `rules/rules.engine.ts` — the matcher
+- `billing/entitlement.ts` — what each App Store notification means
+- `bank-connections/account-mapping.ts` — Akahu's vocabulary to ours
+- `plugins/client-version.ts` — `evaluateClientBuild`, `isMoneyMovementBlocked`
+- `lib/money.ts` — decimal strings to cents
+
+### Environment
+
+`src/config/env.ts` validates at *import* and throws, so a missing variable is a
+startup failure with a readable message rather than a 500 later.
+`.env.example` carries a placeholder for every required variable and is what CI
+copies; a clean checkout passes `pnpm test` with it unchanged.
+
+Two rules that are enforced rather than documented: production refuses to boot
+without `MIN_SUPPORTED_BUILD`, and `TOKEN_ENC_KEY` is parsed at import so a
+malformed key fails at startup rather than the first time someone connects a
+bank.
+
+**`docs/key-runbook.md` is the file to read before touching any secret.** It
+covers what each key protects, what is unrecoverable if it is lost, and how to
+rotate it — including the Sign in with Apple key, which **expires every six
+months and fails silently**, because a failed code exchange is deliberately
+swallowed so it cannot break sign-in.
 
 ### Things that will bite you
 
@@ -280,3 +332,29 @@ and delete users, and there is deliberately no override. A hosted URL reads as
 Bring it up with `pnpm db:start && pnpm db:reset`. The local stack's keys are the
 ones `supabase start` prints; placeholder values in `.env` fail with
 `Expected 3 parts in JWT`.
+
+**External providers are stubbed, never called.** Apple and Akahu are exercised
+against fake `fetch` implementations and, for Apple's JWS, a throwaway
+certificate chain in `test/fixtures/`. That verifies *our* request shapes,
+signature handling and error paths — it does not verify that either provider
+accepts them. Nothing in this repository has ever talked to the real Akahu API,
+and Apple has only been exercised through a pinned root certificate.
+
+The gap that closes it is `docs/storekit-sandbox-testing.md`, which needs a
+device and an App Store Connect account.
+
+### Cross-repository contract
+
+The iOS app is a separate repository and cannot be verified against source it
+does not have, so the contract is **generated and published** rather than
+described: `pnpm contract:emit` writes `contract/`, and `.github/workflows/
+release.yml` attaches it to `v*` tags.
+
+`openapi.json` is not committed — it is ~9,700 lines and would swamp the diff of
+every schema change. `money-vectors.json` is, and CI fails if regenerating it
+produces a diff, because a committed vector file that disagreed with the server
+would be believed.
+
+`docs/ios-integration.md` is the prose half: the two one-shot values Apple gives
+exactly once, the bank connection flow, the build header, and the four refusals
+that lead to four different screens.
