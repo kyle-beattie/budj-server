@@ -74,6 +74,34 @@ describe('module mounting', () => {
     expect(response.json()).toMatchObject({ error: { code: 'NOT_FOUND' } });
   });
 
+  /**
+   * Apple holds no Supabase session, so this endpoint cannot require a JWT. It
+   * must reach body validation for an anonymous caller — a 401 here would mean
+   * `requireAuth` had been added, and every one of Apple's deliveries would
+   * fail silently until entitlement drifted far enough for someone to notice.
+   */
+  it('leaves the App Store notification endpoint unauthenticated', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/billing/apple/notifications',
+      payload: {},
+    });
+
+    expect(response.statusCode).toBe(400);
+    expect(response.json()).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+  });
+
+  it('rejects an unverifiable notification without a 500', async () => {
+    const response = await app.inject({
+      method: 'POST',
+      url: '/api/billing/apple/notifications',
+      payload: { signedPayload: 'not-a-jws' },
+    });
+
+    // 400, not 500 and not 200: retrying will not make it verify.
+    expect(response.statusCode).toBe(400);
+  });
+
   it.each([
     ['/api/auth/sign-up'],
     ['/api/auth/sign-in'],
@@ -112,6 +140,21 @@ describe('openapi', () => {
     expect(paths).toContain('/api/auth/me');
 
     expect(document.components?.securitySchemes).toHaveProperty('bearerAuth');
+    expect(paths).toContain('/api/billing/apple/notifications');
+  });
+
+  /**
+   * The server cannot cancel, pause or refund an Apple subscription — there is
+   * no such API, only the user can, in App Store settings. A route claiming
+   * otherwise would be a lie the contract propagates into the iOS client.
+   */
+  it('exposes no route claiming to cancel or pause a subscription', async () => {
+    const document = app.swagger() as { paths: Record<string, unknown> };
+
+    const cancellation = Object.keys(document.paths).filter((path) =>
+      /cancel|pause|unsubscribe|refund/i.test(path),
+    );
+    expect(cancellation).toEqual([]);
   });
 
   /**
@@ -143,13 +186,20 @@ describe('openapi', () => {
   it('exposes no route accepting a provider identity token', async () => {
     const document = app.swagger() as { paths: Record<string, unknown> };
 
-    const providerPaths = Object.keys(document.paths).filter((path) =>
-      /apple|google|oauth|provider/i.test(path),
+    // Provider routes under the auth module — the ones a client calls to
+    // establish identity. `/api/billing/apple/notifications` is Apple calling
+    // us about a purchase, not a client authenticating, so it is not in scope.
+    const providerAuthPaths = Object.keys(document.paths).filter((path) =>
+      /^\/api\/auth\/.*(apple|google|oauth|provider)/i.test(path),
     );
-    expect(providerPaths).toEqual(['/api/auth/apple/grant']);
+    expect(providerAuthPaths).toEqual(['/api/auth/apple/grant']);
 
     const body = JSON.stringify(document.paths['/api/auth/apple/grant']);
     expect(body).toContain('authorizationCode');
-    expect(body).not.toMatch(/idToken|identityToken|id_token/i);
+
+    // No route anywhere accepts an identity token. Asserted across the whole
+    // document, not just the auth module, so it cannot be reintroduced
+    // somewhere this filter does not look.
+    expect(JSON.stringify(document)).not.toMatch(/idToken|identityToken|id_token/i);
   });
 });
