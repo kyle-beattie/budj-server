@@ -24,6 +24,9 @@ function serviceFor(request: FastifyRequest): RulesService {
 
 const rulesRoutes: FastifyPluginAsyncZod = async (fastify) => {
   fastify.addHook('onRequest', fastify.requireAuth);
+  // Rules are past the paywall: there is no free tier, and a rule that cannot
+  // run is not worth storing. Order matters — the gate reads `request.auth`.
+  fastify.addHook('onRequest', fastify.requireSubscription);
 
   fastify.get(
     '',

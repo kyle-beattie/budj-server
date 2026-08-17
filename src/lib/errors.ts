@@ -32,6 +32,20 @@ export class UnauthorizedError extends AppError {
   }
 }
 
+/**
+ * 402, for a caller who is authenticated but has no active subscription.
+ *
+ * Deliberately its own status and code, distinct from 401 and 403: the app has
+ * to tell "sign in again" apart from "you cannot do this" apart from "buy a
+ * subscription", and each leads somewhere different in the UI. There is no free
+ * tier, so this is the ordinary state of a signed-in user who has not paid.
+ */
+export class PaymentRequiredError extends AppError {
+  constructor(message = 'An active subscription is required') {
+    super(message, { statusCode: 402, code: 'SUBSCRIPTION_REQUIRED' });
+  }
+}
+
 export class ForbiddenError extends AppError {
   constructor(message = 'You do not have access to this resource') {
     super(message, { statusCode: 403, code: 'FORBIDDEN' });

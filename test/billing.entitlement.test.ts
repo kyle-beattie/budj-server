@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  isCurrentlyEntitled,
   isEntitling,
   isHandledNotificationType,
   resolveOutcome,
@@ -56,6 +57,50 @@ describe('isEntitling', () => {
   /** No free tier: absent entitlement is not reduced entitlement. */
   it.each([[null], [undefined]])('treats %s as not entitled', (status) => {
     expect(isEntitling(status)).toBe(false);
+  });
+});
+
+describe('isCurrentlyEntitled', () => {
+  const now = new Date('2026-08-17T00:00:00Z');
+  const future = '2026-09-17T00:00:00.000Z';
+  const past = '2026-01-01T00:00:00.000Z';
+
+  it('entitles an active subscription that has not expired', () => {
+    expect(isCurrentlyEntitled('active', future, now)).toBe(true);
+  });
+
+  /**
+   * The rule that stops a missed notification becoming a free subscription.
+   * Apple's notifications are the only writer, and entitlement must never be
+   * inferred from the absence of one.
+   */
+  it('refuses an active subscription whose expiry has passed', () => {
+    expect(isCurrentlyEntitled('active', past, now)).toBe(false);
+  });
+
+  /**
+   * The deliberate exception: during a grace period the expiry has by
+   * definition already passed while Apple retries payment. Enforcing it here
+   * cuts off exactly the people Apple is still trying to bill.
+   */
+  it('entitles a grace period even though its expiry has passed', () => {
+    expect(isCurrentlyEntitled('grace_period', past, now)).toBe(true);
+  });
+
+  it.each([['expired'], ['revoked']] as const)('never entitles %s', (status) => {
+    expect(isCurrentlyEntitled(status, future, now)).toBe(false);
+  });
+
+  it('refuses a caller with no subscription at all', () => {
+    expect(isCurrentlyEntitled(null, null, now)).toBe(false);
+  });
+
+  it('entitles an active subscription with no recorded expiry', () => {
+    expect(isCurrentlyEntitled('active', null, now)).toBe(true);
+  });
+
+  it('treats the exact expiry instant as expired', () => {
+    expect(isCurrentlyEntitled('active', now.toISOString(), now)).toBe(false);
   });
 });
 

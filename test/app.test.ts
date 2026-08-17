@@ -44,6 +44,9 @@ describe('module mounting', () => {
     ['POST', '/api/auth/sign-out'],
     ['POST', '/api/auth/password'],
     ['POST', '/api/auth/apple/grant'],
+    ['GET', '/api/billing/plans'],
+    ['GET', '/api/billing/subscription'],
+    ['POST', '/api/billing/transaction'],
   ])('%s %s exists and rejects anonymous callers with 401', async (method, url) => {
     const response = await app.inject({ method: method as 'GET', url });
     expect(response.statusCode).toBe(401);
@@ -141,6 +144,9 @@ describe('openapi', () => {
 
     expect(document.components?.securitySchemes).toHaveProperty('bearerAuth');
     expect(paths).toContain('/api/billing/apple/notifications');
+    expect(paths).toContain('/api/billing/plans');
+    expect(paths).toContain('/api/billing/subscription');
+    expect(paths).toContain('/api/billing/transaction');
   });
 
   /**
