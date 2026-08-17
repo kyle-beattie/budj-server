@@ -2,6 +2,7 @@ import Fastify, { type FastifyInstance, type FastifyServerOptions } from 'fastif
 import { serializerCompiler, validatorCompiler } from 'fastify-type-provider-zod';
 import { config, isDevelopment, isTest } from './config/index.js';
 import authPlugin from './modules/auth/auth.plugin.js';
+import billingPlugin from './modules/billing/billing.plugin.js';
 import registerModules from './modules/index.js';
 import errorHandlerPlugin from './plugins/error-handler.js';
 import healthPlugin from './plugins/health.js';
@@ -17,7 +18,8 @@ export type BuildAppOptions = Partial<FastifyServerOptions>;
  * Assembles the application without binding a port, so tests can drive it with
  * `app.inject()`. Registration order matters:
  *
- *   errors -> security -> auth (Supabase clients + guards) -> health -> docs -> modules
+ *   errors -> security -> auth (Supabase clients + guards) -> billing (the
+ *   entitlement gate) -> health -> docs -> modules
  *
  * There is no database plugin: this API reaches Postgres through PostgREST, and
  * every request builds its own client from the caller's token.
@@ -61,6 +63,8 @@ export async function buildApp(options: BuildAppOptions = {}): Promise<FastifyIn
   await app.register(errorHandlerPlugin);
   await app.register(securityPlugin);
   await app.register(authPlugin);
+  // Decorates `requireSubscription`; depends on auth for `request.auth`.
+  await app.register(billingPlugin);
   await app.register(healthPlugin);
   await app.register(swaggerPlugin);
 

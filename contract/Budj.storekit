@@ -1,0 +1,65 @@
+{
+  "identifier": "budj-local",
+  "nonRenewingSubscriptions": [],
+  "products": [],
+  "settings": {
+    "_applicationInternalID": "1234567890",
+    "_developerTeamID": "ABCDE12345",
+    "_lastSynchronizedDate": 0,
+    "_locale": "en_NZ",
+    "_storefront": "NZL",
+    "_storeKitErrors": []
+  },
+  "subscriptionGroups": [
+    {
+      "id": "budj-main",
+      "localizations": [],
+      "name": "Budj",
+      "subscriptions": [
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "4.99",
+          "familyShareable": false,
+          "groupNumber": 1,
+          "internalID": "starter-monthly",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "Up to 10 rules across 2 connected banks.",
+              "displayName": "Starter",
+              "locale": "en_NZ"
+            }
+          ],
+          "productID": "com.budj.starter.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Starter Monthly",
+          "subscriptionGroupID": "budj-main",
+          "type": "RecurringSubscription"
+        },
+        {
+          "adHocOffers": [],
+          "codeOffers": [],
+          "displayPrice": "12.99",
+          "familyShareable": false,
+          "groupNumber": 2,
+          "internalID": "pro-monthly",
+          "introductoryOffer": null,
+          "localizations": [
+            {
+              "description": "Up to 100 rules across 10 connected banks.",
+              "displayName": "Pro",
+              "locale": "en_NZ"
+            }
+          ],
+          "productID": "com.budj.pro.monthly",
+          "recurringSubscriptionPeriod": "P1M",
+          "referenceName": "Pro Monthly",
+          "subscriptionGroupID": "budj-main",
+          "type": "RecurringSubscription"
+        }
+      ]
+    }
+  ],
+  "version": { "major": 4, "minor": 0 }
+}

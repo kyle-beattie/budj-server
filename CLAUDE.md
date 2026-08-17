@@ -71,7 +71,11 @@ written down, or the rule erodes within a month.
    different from the others: Apple holds no Supabase session, so the request is
    authenticated by a JWS certificate chain rather than a JWT, and `requireAuth`
    cannot apply. Not user-initiated, returns nothing to a caller.
-4. `getAkahuToken(userId)` — *pending*, arrives with the bank-connections
+4. **Purchase submission** (`POST /api/billing/transaction`) — the caller is
+   authenticated, but `billing_subscriptions` is select-only for its owner *so
+   that* a user cannot grant themselves a plan. The user id comes from the
+   verified JWT; only the write bypasses RLS.
+5. `getAkahuToken(userId)` — *pending*, arrives with the bank-connections
    module, same custody model.
 
 ### Tenancy is enforced twice, on purpose
@@ -163,6 +167,15 @@ block in the migration is written out by hand and every new table must be added
 to it. `anon` is deliberately absent from it, and `akahu_tokens` / `apple_grants`
 are withheld from `authenticated` too, so a mistakenly added policy still would
 not expose them.
+
+**`requireSubscription` gates everything past identity, and must stay off four
+things.** There is no free tier, so it is a hard boundary rather than a feature
+flag: `onRequest`, always after `requireAuth`, answering 402
+`SUBSCRIPTION_REQUIRED` — a distinct code from 401 and 403 because the app sends
+those three to different screens. It must **not** guard onboarding status (the
+unpaid user is exactly who needs to be told billing is their next step —
+guarding it deadlocks the app at screen two), the plan catalogue, purchase
+submission, or auth. `test/integration/billing.gate.test.ts` asserts all of that.
 
 **Never widen Apple JWS verification.** `src/modules/billing/apple-jws.ts` is
 the only thing between the internet and a free subscription. The trust anchor is

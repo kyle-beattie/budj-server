@@ -16,6 +16,32 @@ export function isEntitling(status: SubscriptionStatus | null | undefined): bool
   return status ? ENTITLING.includes(status) : false;
 }
 
+/**
+ * Whether a cached entitlement entitles the caller **right now**.
+ *
+ * The status alone is not enough. Apple's notifications are the only writer, and
+ * the spec is explicit that continued entitlement must never be inferred from
+ * the absence of one: a missed or delayed `EXPIRED` would otherwise leave
+ * `status: 'active'` serving someone indefinitely for free. So a lapsed
+ * `expires_at` refuses regardless of what the status says.
+ *
+ * `grace_period` is the deliberate exception. Apple is retrying payment and
+ * continues to serve the user, and during that window the expiry has by
+ * definition already passed — enforcing it there would cut off exactly the
+ * people Apple is still trying to bill.
+ */
+export function isCurrentlyEntitled(
+  status: SubscriptionStatus | null | undefined,
+  expiresAt: string | null | undefined,
+  now: Date = new Date(),
+): boolean {
+  if (!isEntitling(status)) return false;
+  if (status === 'grace_period') return true;
+  if (!expiresAt) return true;
+
+  return new Date(expiresAt).getTime() > now.getTime();
+}
+
 export function isHandledNotificationType(value: string): value is HandledNotificationType {
   return (handledNotificationTypes as readonly string[]).includes(value);
 }

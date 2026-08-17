@@ -88,6 +88,22 @@ export const subscriptionSchema = z.object({
 export type SubscriptionView = z.infer<typeof subscriptionSchema>;
 
 /**
+ * The signed transaction StoreKit hands the app after a purchase.
+ *
+ * Everything meaningful is inside the JWS. Nothing else is accepted — no
+ * product id, no user id, no plan — because a field outside the signature is a
+ * field the caller chose.
+ */
+export const submitTransactionSchema = z.object({
+  signedTransaction: z.string().min(1),
+});
+export type SubmitTransactionInput = z.infer<typeof submitTransactionSchema>;
+
+export const planListSchema = z.object({
+  data: z.array(planSchema),
+});
+
+/**
  * Apple requires a 200 to consider a notification delivered; a non-2xx makes it
  * retry. `handled: false` still returns 200 — it means the type was one we
  * ignore, which is not a failure and must not be retried.

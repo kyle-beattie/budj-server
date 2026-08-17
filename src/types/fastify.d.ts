@@ -1,6 +1,7 @@
 import type { onRequestHookHandler } from 'fastify';
 import type { Supabase } from '../supabase/client.js';
 import type { AuthContext } from '../modules/auth/auth.plugin.js';
+import type { Plan } from '../modules/billing/plans.js';
 
 declare module 'fastify' {
   interface FastifyInstance {
@@ -22,6 +23,14 @@ declare module 'fastify' {
     requireAuth: onRequestHookHandler;
     /** onRequest hook that populates `request.auth` when present, but never rejects. */
     optionalAuth: onRequestHookHandler;
+    /**
+     * onRequest guard that 402s unless the caller has an active subscription.
+     * Must be registered **after** `requireAuth`. Populates `request.entitlements`.
+     *
+     * Deliberately absent from onboarding status, the plan catalogue and
+     * purchase submission — you cannot require a subscription to buy one.
+     */
+    requireSubscription: onRequestHookHandler;
   }
 
   interface FastifyRequest {
@@ -32,6 +41,11 @@ declare module 'fastify' {
      * resolves and RLS applies. Non-null wherever `request.auth` is.
      */
     supabase: Supabase | null;
+    /**
+     * Limits and effects the caller's plan grants, resolved from the code
+     * catalogue. Non-null on any route guarded by `requireSubscription`.
+     */
+    entitlements: Plan | null;
   }
 }
 
