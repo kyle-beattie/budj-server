@@ -26,6 +26,9 @@ pnpm vitest run test/rules.engine.test.ts
 pnpm vitest run -t 'halts on stopProcessing'
 ```
 
+`pnpm types:generate` targets the **linked remote** project. For a local stack
+use `pnpm types:generate:local` — the `--linked` form cannot read it.
+
 **Tests require a `.env`.** `src/config/env.ts` validates `process.env` at *import*
 time and throws, so a missing `SUPABASE_URL` / `SUPABASE_ANON_KEY` /
 `SUPABASE_SERVICE_ROLE_KEY` / `PUBLIC_URL` fails the suite at module load with a
@@ -74,7 +77,10 @@ Adding a module: write the table + RLS policies + `updated_at` trigger in a new
 
 ### Layering inside a domain module
 
-`accounts` and `rules` are the reference implementations; copy either.
+`rules` is the reference implementation for a user-owned resource; copy it.
+`accounts` is **not** a template — it is a read-only projection of what Akahu
+reports, with no create, update or delete route, because an account is a fact a
+bank reports rather than a record a user makes.
 
 `*.types.ts` (Zod DTOs) → `*.repository.ts` (PostgREST queries only) →
 `*.service.ts` (business rules, throws `AppError`) → `*.routes.ts` (thin
@@ -115,6 +121,21 @@ runtime and crashes on boot.
 `routerOptions.ignoreTrailingSlash` in `app.ts` makes the trailing-slash form
 still resolve.
 
+**RLS is not a grant.** A policy decides *which rows* a role may touch; it does
+not give the role access to the table. Without a table-level `grant`, PostgREST
+answers `42501 permission denied for table X` before consulting any policy — so
+a table can have a full set of correct-looking policies and be completely
+unreachable. Supabase's default privileges do **not** cover this; the `grants`
+block in the migration is written out by hand and every new table must be added
+to it. `anon` is deliberately absent from it, and `akahu_tokens` / `apple_grants`
+are withheld from `authenticated` too, so a mistakenly added policy still would
+not expose them.
+
+**A migration must not be named `*_init.sql`.** The Supabase CLI reserves it:
+`db reset` prints a one-line `Skipping migration ...` notice, applies nothing,
+and exits 0. The initial schema is `00000000000001_initial_schema.sql` for this
+reason.
+
 **Money is `numeric(14,2)` in Postgres and a decimal string everywhere else** —
 PostgREST returns it as a string and it stays one through DTOs and JSON. Never a
 float.
@@ -146,7 +167,16 @@ routes reach validation, and OpenAPI generates. No Supabase project needed — a
 missing token is rejected without any network call. It proves wiring, not
 behaviour.
 
-There is **no integration suite**. The SQL in `supabase/migrations/` has never
-been applied, and no sign-up, token verification or PostgREST query has run
-against a real project. That needs a suite against a local `supabase start`
-stack.
+`test/integration/` runs against a local `supabase start` stack and proves what
+the wiring test cannot: that the migration applies, that the RLS policies do what
+their names claim, that `handle_new_user` fires. `test/integration/harness.ts`
+builds the clients and skips the whole suite when no stack is up, so `pnpm test`
+still passes without Docker.
+
+It **refuses to run against a non-loopback `SUPABASE_URL`** — these tests create
+and delete users, and there is deliberately no override. A hosted URL reads as
+"stack absent" and skips.
+
+Bring it up with `pnpm db:start && pnpm db:reset`. The local stack's keys are the
+ones `supabase start` prints; placeholder values in `.env` fail with
+`Expected 3 parts in JWT`.

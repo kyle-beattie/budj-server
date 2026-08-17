@@ -32,7 +32,8 @@
     "db:reset": "supabase db reset",
     "db:diff": "supabase db diff -f",
     "db:push": "supabase db push",
-    "types:generate": "supabase gen types typescript --linked --schema public > src/supabase/database.types.ts"
+    "types:generate": "supabase gen types typescript --linked --schema public > src/supabase/database.types.ts",
+    "types:generate:local": "supabase gen types typescript --local --schema public > src/supabase/database.types.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

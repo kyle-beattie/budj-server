@@ -1,16 +1,9 @@
 import type { FastifyRequest } from 'fastify';
 import type { FastifyPluginAsyncZod } from 'fastify-type-provider-zod';
-import { z } from 'zod';
 import { errorResponses, idParamSchema } from '../../lib/http.js';
 import { AccountsRepository } from './accounts.repository.js';
 import { AccountsService } from './accounts.service.js';
-import {
-  accountListSchema,
-  accountSchema,
-  createAccountSchema,
-  listAccountsQuerySchema,
-  updateAccountSchema,
-} from './accounts.types.js';
+import { accountListSchema, accountSchema, listAccountsQuerySchema } from './accounts.types.js';
 
 /**
  * Built per request, not once at registration: the Supabase client carries the
@@ -20,6 +13,12 @@ function serviceFor(request: FastifyRequest): AccountsService {
   return new AccountsService(new AccountsRepository(request.supabase!));
 }
 
+/**
+ * Read-only. `POST`, `PATCH` and `DELETE /api/accounts` were removed when
+ * accounts stopped being a user-owned table: an account is a fact Akahu
+ * reports, and the connection sync is its only writer. Re-adding a write route
+ * here would let a user invent an account that no bank backs.
+ */
 const accountsRoutes: FastifyPluginAsyncZod = async (fastify) => {
   // Every route in this module requires a session.
   fastify.addHook('onRequest', fastify.requireAuth);
@@ -29,7 +28,7 @@ const accountsRoutes: FastifyPluginAsyncZod = async (fastify) => {
     {
       schema: {
         tags: ['accounts'],
-        summary: 'List the current user’s accounts',
+        summary: 'List the current user’s connected accounts',
         querystring: listAccountsQuerySchema,
         response: { 200: accountListSchema, ...errorResponses },
       },
@@ -42,58 +41,12 @@ const accountsRoutes: FastifyPluginAsyncZod = async (fastify) => {
     {
       schema: {
         tags: ['accounts'],
-        summary: 'Fetch a single account',
+        summary: 'Fetch a single connected account',
         params: idParamSchema,
         response: { 200: accountSchema, ...errorResponses },
       },
     },
     async (request) => serviceFor(request).getById(request.auth!.userId, request.params.id),
-  );
-
-  fastify.post(
-    '',
-    {
-      schema: {
-        tags: ['accounts'],
-        summary: 'Create an account',
-        body: createAccountSchema,
-        response: { 201: accountSchema, ...errorResponses },
-      },
-    },
-    async (request, reply) => {
-      const account = await serviceFor(request).create(request.auth!.userId, request.body);
-      return reply.status(201).send(account);
-    },
-  );
-
-  fastify.patch(
-    '/:id',
-    {
-      schema: {
-        tags: ['accounts'],
-        summary: 'Update an account',
-        params: idParamSchema,
-        body: updateAccountSchema,
-        response: { 200: accountSchema, ...errorResponses },
-      },
-    },
-    async (request) => serviceFor(request).update(request.auth!.userId, request.params.id, request.body),
-  );
-
-  fastify.delete(
-    '/:id',
-    {
-      schema: {
-        tags: ['accounts'],
-        summary: 'Delete an account',
-        params: idParamSchema,
-        response: { 204: z.null(), ...errorResponses },
-      },
-    },
-    async (request, reply) => {
-      await serviceFor(request).remove(request.auth!.userId, request.params.id);
-      return reply.status(204).send(null);
-    },
   );
 };
 

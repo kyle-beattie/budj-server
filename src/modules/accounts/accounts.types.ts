@@ -1,6 +1,13 @@
 import { z } from 'zod';
 import { paginatedSchema, paginationQuerySchema } from '../../lib/pagination.js';
 
+/**
+ * Accounts are a **read-only projection of what Akahu reports**, not a
+ * user-owned table. There are no create, update or delete DTOs here on purpose:
+ * a user cannot invent an account, rename one, or delete one. The connection
+ * sync in `bank-connections` is the only writer.
+ */
+
 export const accountTypes = [
   'checking',
   'savings',
@@ -8,57 +15,44 @@ export const accountTypes = [
   'cash',
   'loan',
   'investment',
+  /** Fallback for an Akahu type this codebase has no mapping for. */
+  'other',
 ] as const;
 
 export const accountTypeSchema = z.enum(accountTypes);
 export type AccountType = z.infer<typeof accountTypeSchema>;
 
-/** Money crosses the wire as a fixed-point string, matching Postgres `numeric`. */
-const moneySchema = z
-  .string()
-  .regex(/^-?\d{1,12}(\.\d{1,2})?$/, 'Expected a decimal amount with up to 2 places');
-
 export const accountSchema = z.object({
   id: z.uuid(),
   userId: z.string(),
+  /** The `akahu_connections` row this account arrived through. */
+  connectionId: z.uuid(),
+  /** Akahu's own identifier (`acc_...`). Stable across syncs. */
+  akahuAccountId: z.string(),
   name: z.string(),
   type: accountTypeSchema,
   currency: z.string().length(3),
-  balance: z.string(),
-  institution: z.string().nullable(),
-  isArchived: z.boolean(),
+  /**
+   * Two capability flags, not one — Akahu governs paying out and receiving
+   * separately. A credit card can trigger a rule and can never receive money,
+   * and the rule editor needs to know that.
+   */
+  paymentFrom: z.boolean(),
+  paymentTo: z.boolean(),
+  /** Last time Akahu reported this account. */
+  lastSeenAt: z.iso.datetime(),
+  /** Set when Akahu stops reporting the account, or the connection is revoked. */
+  disconnectedAt: z.iso.datetime().nullable(),
   createdAt: z.iso.datetime(),
   updatedAt: z.iso.datetime(),
 });
 
 export type Account = z.infer<typeof accountSchema>;
 
-export const createAccountSchema = z.object({
-  name: z.string().trim().min(1).max(120),
-  type: accountTypeSchema,
-  currency: z
-    .string()
-    .length(3)
-    .transform((value) => value.toUpperCase())
-    .default('NZD'),
-  balance: moneySchema.default('0'),
-  institution: z.string().trim().max(120).nullish(),
-});
-
-export type CreateAccountInput = z.infer<typeof createAccountSchema>;
-
-export const updateAccountSchema = createAccountSchema
-  .partial()
-  .extend({ isArchived: z.boolean().optional() })
-  .refine((value) => Object.keys(value).length > 0, {
-    message: 'At least one field must be provided',
-  });
-
-export type UpdateAccountInput = z.infer<typeof updateAccountSchema>;
-
 export const listAccountsQuerySchema = paginationQuerySchema.extend({
   type: accountTypeSchema.optional(),
-  includeArchived: z
+  connectionId: z.uuid().optional(),
+  includeDisconnected: z
     .enum(['true', 'false'])
     .default('false')
     .transform((value) => value === 'true'),
