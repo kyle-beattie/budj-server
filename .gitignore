@@ -16,3 +16,9 @@ npm-debug.log*
 supabase/.branches/
 supabase/.temp/
 supabase/.env
+
+# Generated contract. `openapi.json` is emitted from the running app and
+# attached to tagged releases rather than committed — it is ~10k lines and would
+# swamp the diff of every schema change. `money-vectors.json` IS committed: it
+# is small, hand-curated, and the test suite asserts the server against it.
+contract/openapi.json

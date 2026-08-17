@@ -10,6 +10,14 @@ export const API_PREFIX = '/api';
 /** The auth proxy in front of Supabase Auth. */
 export const AUTH_PREFIX = `${API_PREFIX}/auth`;
 
+function parseBuildRange(raw: string | undefined): { from: number; to: number } | null {
+  if (!raw) return null;
+  const [from, to] = raw.split('-').map(Number) as [number, number];
+  // Written the wrong way round is a typo during an incident, not a config to
+  // honour literally.
+  return from <= to ? { from, to } : { from: to, to: from };
+}
+
 export const config = {
   server: {
     port: env.PORT,
@@ -50,6 +58,10 @@ export const config = {
     bundleId: env.APP_STORE_BUNDLE_ID,
     appAppleId: env.APP_STORE_APP_APPLE_ID,
     environment: env.APP_STORE_ENVIRONMENT,
+  },
+  client: {
+    minimumBuild: env.MIN_SUPPORTED_BUILD ?? null,
+    blockedMoneyBuilds: parseBuildRange(env.BLOCKED_MONEY_BUILDS),
   },
   akahu: {
     appToken: env.AKAHU_APP_TOKEN,

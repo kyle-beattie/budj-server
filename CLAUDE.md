@@ -17,6 +17,7 @@ pnpm db:reset         # recreate local DB, replay supabase/migrations
 pnpm db:diff <name>   # write a migration from local schema drift
 pnpm db:push          # apply migrations to the linked project
 pnpm types:generate   # regenerate src/supabase/database.types.ts
+pnpm contract:emit    # write contract/ for the iOS repo (generated, not edited)
 ```
 
 Single test file or single case:
@@ -185,6 +186,27 @@ connections; those come from the nested `connection` on each account. User-scope
 reads need `Authorization: Bearer <user token>` **and** `X-Akahu-Id: <app token>`
 together. `POST /v1/token` reports failure in `error`, every other endpoint uses
 `message`, and a 200 can still carry `success: false`.
+
+**Every client request must carry `x-client-build`, and a missing one is
+unsupported rather than exempt.** A client that cannot be identified cannot be
+gated, so absence is refused with `426 CLIENT_UPDATE_REQUIRED`. Webhooks, health
+and docs are exempt by prefix — they are not client requests. The gate is inert
+when `MIN_SUPPORTED_BUILD` is unset, and `env.ts` refuses to boot in production
+without it, because a deployment with no minimum has no version gate at all and
+the gap stays invisible until a bad build needs stopping.
+`requireMoneyMovementAllowed` is separate and unused so far: nothing initiates a
+payment yet, but `add-rule-triggers` inherits a working gate rather than building
+one during an incident.
+
+**Four refusals, four different screens.** 401 sign in · 402 subscribe · 403
+upgrade plan · 426 update the app. Keep them distinct — collapsing any two sends
+someone to a screen that cannot fix their problem.
+
+**Money never touches a float.** `src/lib/money.ts` parses decimal strings to
+cents by string manipulation, and rejects three decimal places rather than
+rounding. `contract/money-vectors.json` is generated from it and asserted against
+it in CI, because the iOS client is generated from an OpenAPI document that types
+money as `string` and nothing there stops `Double(amountString)`.
 
 **`requireSubscription` gates everything past identity, and must stay off four
 things.** There is no free tier, so it is a hard boundary rather than a feature
