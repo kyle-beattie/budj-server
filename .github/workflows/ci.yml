@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # `src/config/env.ts` validates process.env at *import* time, so the
+      # suite cannot even load without one. Placeholders are enough — no test
+      # here makes a network call.
+      - name: Provide placeholder environment
+        run: cp .env.example .env
+
+      - run: pnpm typecheck
+
+      # The integration suite skips itself without a local Supabase stack, so
+      # this runs the unit and wiring tests. It also asserts
+      # contract/money-vectors.json against the server's own implementation,
+      # which is the point of running it here rather than trusting the file.
+      - run: pnpm test
+
+      # money-vectors.json is committed and generated, so a stale copy means
+      # the published vectors disagree with the server. openapi.json is not
+      # committed (see .gitignore) — it is attached to tagged releases.
+      - name: Money vectors are up to date
+        run: |
+          pnpm contract:emit
+          git diff --exit-code contract/money-vectors.json || {
+            echo "::error::contract/money-vectors.json is stale — run 'pnpm contract:emit' and commit it"
+            exit 1
+          }

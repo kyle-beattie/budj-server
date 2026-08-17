@@ -31,6 +31,15 @@ declare module 'fastify' {
      * purchase submission — you cannot require a subscription to buy one.
      */
     requireSubscription: onRequestHookHandler;
+    /**
+     * onRequest guard that refuses money movement from a client build listed as
+     * blocked, while leaving every other operation available.
+     *
+     * Nothing initiates a payment in this change, so nothing applies it yet —
+     * it exists, and is proven to refuse, so `add-rule-triggers` inherits a
+     * working gate rather than building one during an incident.
+     */
+    requireMoneyMovementAllowed: onRequestHookHandler;
   }
 
   interface FastifyRequest {
@@ -46,6 +55,11 @@ declare module 'fastify' {
      * catalogue. Non-null on any route guarded by `requireSubscription`.
      */
     entitlements: Plan | null;
+    /**
+     * The caller's client build, from `x-client-build`. Null on exempt routes
+     * (webhooks, health, docs) and when the version gate is disabled.
+     */
+    clientBuild: number | null;
   }
 }
 

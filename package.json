@@ -2,7 +2,7 @@
   "name": "budj-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Budj API server — Fastify + TypeScript + Supabase (Postgres, PostgREST, Auth)",
+  "description": "Budj API server \u2014 Fastify + TypeScript + Supabase (Postgres, PostgREST, Auth)",
   "type": "module",
   "main": "dist/server.js",
   "packageManager": "pnpm@9.15.0",
@@ -33,7 +33,8 @@
     "db:diff": "supabase db diff -f",
     "db:push": "supabase db push",
     "types:generate": "supabase gen types typescript --linked --schema public > src/supabase/database.types.ts",
-    "types:generate:local": "supabase gen types typescript --local --schema public > src/supabase/database.types.ts"
+    "types:generate:local": "supabase gen types typescript --local --schema public > src/supabase/database.types.ts",
+    "contract:emit": "tsx scripts/emit-contract.ts"
   },
   "dependencies": {
     "@fastify/cors": "^11.3.0",

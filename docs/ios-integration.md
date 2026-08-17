@@ -155,6 +155,59 @@ signature; that was dropped from the product, not deferred. Face ID unlocking th
 app is entirely a client concern — hold the Supabase refresh token in the
 Keychain behind `kSecAccessControl` and the server neither knows nor cares.
 
+## Every request must carry the build number
+
+```
+X-Client-Build: 412
+```
+
+`CFBundleVersion`, as an integer. Send it on **every** request.
+
+**Omitting it is not a bypass — it is refused.** A client that cannot be
+identified cannot be gated, so a missing header is treated as an unsupported
+build. Set it once in the shared URLSession configuration rather than per call.
+
+Four refusals, four different screens. Collapsing any two sends someone somewhere
+that cannot fix their problem:
+
+| Status | Code | What the app should do |
+| --- | --- | --- |
+| 401 | `UNAUTHORIZED` | Sign in again |
+| 402 | `SUBSCRIPTION_REQUIRED` | Show the purchase screen |
+| 403 | `PLAN_LIMIT_EXCEEDED` | Offer an upgrade — they have already paid |
+| 426 | `CLIENT_UPDATE_REQUIRED` | Send them to the App Store |
+
+`409 CLIENT_BUILD_BLOCKED` also exists, for a build barred from money-moving
+operations while the rest of the app keeps working. Nothing returns it yet.
+
+## Money is a string, and `Double` will lose cents
+
+Amounts cross the wire as decimal strings (`"12.34"`), because Postgres stores
+`numeric(14,2)`. OpenAPI types them as `string`, and nothing in a generated Swift
+client stops `Double(amountString)` — on the screen where someone approves a
+payment.
+
+`contract/money-vectors.json` ships with every tagged release. **Run it in the
+client's own CI.** It contains values where `parseFloat(s) * 100` lands just
+under the integer:
+
+| Decimal | Correct cents | Naive `trunc(x * 100)` |
+| --- | --- | --- |
+| `0.29` | 29 | 28 |
+| `4.35` | 435 | 434 |
+| `1.15` | 115 | 114 |
+| `9.95` | 995 | 994 |
+
+Parse by string manipulation, into an integer. The vectors also list inputs that
+must be **rejected** rather than guessed at — three decimal places, exponent
+notation, `NaN`, a currency symbol.
+
+## The contract is published, not described
+
+Each `v*` tag attaches `openapi.json` and `money-vectors.json` to the GitHub
+release. Pin a tag and regenerate with `swift-openapi-generator`; both files are
+generated from the running server, so they cannot drift from it.
+
 ## Sign in with Apple is not optional
 
 Offering Google without an equivalent privacy-preserving option is itself an App

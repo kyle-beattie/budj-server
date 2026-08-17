@@ -1,0 +1,44 @@
+name: Publish contract
+
+# The iOS app is a separate repository and cannot be verified against source it
+# does not have (D14), so the contract ships as a tagged artifact:
+#
+#   openapi.json        consumed by swift-openapi-generator as an SPM plugin
+#   money-vectors.json  run in the client's own CI, so float parsing fails there
+#
+# Both are generated. Nothing here is hand-maintained.
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Provide placeholder environment
+        run: cp .env.example .env
+
+      - run: pnpm contract:emit
+
+      - name: Attach the contract to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            contract/openapi.json
+            contract/money-vectors.json

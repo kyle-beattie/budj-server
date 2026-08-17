@@ -111,6 +111,24 @@ const envSchema = z.object({
    * a token problem.
    */
   AKAHU_REDIRECT_URI: z.url(),
+
+  // ---- Client version gating (D15) -------------------------------------------
+  /**
+   * Lowest iOS build allowed to call the API. Unset disables the gate, which is
+   * fine locally and is refused in production below — "forgot to configure it"
+   * must not silently mean "no gating".
+   */
+  MIN_SUPPORTED_BUILD: z.coerce.number().int().positive().optional(),
+  /**
+   * Inclusive build range refused for money movement only, e.g. `412-418`.
+   * Kept separate from the minimum: killing an entire client version because
+   * its amount handling is wrong is worse than refusing the operations that
+   * depend on it. Environment, not a table — this changes during an incident.
+   */
+  BLOCKED_MONEY_BUILDS: z
+    .string()
+    .regex(/^\d{1,10}-\d{1,10}$/, 'Expected a range like 412-418')
+    .optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
@@ -125,6 +143,17 @@ if (!parsed.success) {
 }
 
 export const env: Env = parsed.data;
+
+/**
+ * A production deployment with no minimum build has no version gate at all, and
+ * the failure is invisible until the day a bad build needs stopping. Fail at
+ * boot instead.
+ */
+if (env.NODE_ENV === 'production' && env.MIN_SUPPORTED_BUILD === undefined) {
+  throw new Error(
+    'MIN_SUPPORTED_BUILD is required in production: without it no client version can ever be gated.',
+  );
+}
 
 export const isProduction = env.NODE_ENV === 'production';
 export const isTest = env.NODE_ENV === 'test';
