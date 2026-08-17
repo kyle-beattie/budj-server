@@ -117,6 +117,44 @@ because none is stored. `paymentFrom` and `paymentTo` are independent: a credit
 card commonly has `paymentFrom: true` and `paymentTo: false`, and a rule editor
 must respect both.
 
+## Where to resume on launch
+
+`GET /api/onboarding/status` — authenticated, and **not** subscription gated, so
+it answers even for a user who has not paid.
+
+```json
+{
+  "step": "billing" | "bank" | "ready",
+  "subscriptionActive": false,
+  "planCode": null,
+  "bankConnected": false,
+  "pushRegistered": false
+}
+```
+
+Poll it on launch and after completing any step. It is derived from stored facts
+on every request, so a purchase confirmed by Apple is visible on the very next
+call — there is nothing to advance and nothing that can drift.
+
+`pushRegistered` is **advisory**. `step` reaches `ready` without it, because
+declining notifications must not brick the app. Keep prompting anyway: a rule
+that cannot notify cannot be approved.
+
+## Registering for push
+
+`POST /api/devices` with `{ deviceId, apnsToken }`. Upserts on the device, so
+re-registering when APNs reissues a token is expected — send it on every launch
+where the token changes.
+
+Responses never include the APNs token. `DELETE /api/devices/:deviceId` marks the
+registration revoked.
+
+**No cryptographic key material is accepted, and none will be.** An earlier
+design enrolled a Secure Enclave key so that approving a payment could require a
+signature; that was dropped from the product, not deferred. Face ID unlocking the
+app is entirely a client concern — hold the Supabase refresh token in the
+Keychain behind `kSecAccessControl` and the server neither knows nor cares.
+
 ## Sign in with Apple is not optional
 
 Offering Google without an equivalent privacy-preserving option is itself an App

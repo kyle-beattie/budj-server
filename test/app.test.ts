@@ -50,6 +50,9 @@ describe('module mounting', () => {
     ['GET', '/api/bank-connections'],
     ['POST', '/api/bank-connections/authorise'],
     ['POST', '/api/bank-connections/callback'],
+    ['GET', '/api/devices'],
+    ['POST', '/api/devices'],
+    ['GET', '/api/onboarding/status'],
   ])('%s %s exists and rejects anonymous callers with 401', async (method, url) => {
     const response = await app.inject({ method: method as 'GET', url });
     expect(response.statusCode).toBe(401);
@@ -153,6 +156,20 @@ describe('openapi', () => {
     expect(paths).toContain('/api/bank-connections');
     expect(paths).toContain('/api/bank-connections/authorise');
     expect(paths).toContain('/api/bank-connections/callback');
+    expect(paths).toContain('/api/devices');
+    expect(paths).toContain('/api/onboarding/status');
+  });
+
+  /**
+   * D10: Face ID unlocks the app and the server knows nothing about it, and the
+   * Secure Enclave key enrolment an earlier design had was dropped from the
+   * product rather than deferred. Nothing in the contract should invite a
+   * client to send key material.
+   */
+  it('accepts no cryptographic key material anywhere', async () => {
+    const document = JSON.stringify(app.swagger());
+
+    expect(document).not.toMatch(/publicKey|public_key|attestation|secureEnclave/i);
   });
 
   /**
