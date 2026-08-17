@@ -308,6 +308,45 @@ create policy "rules are deletable by their owner"
   on public.rules for delete using (auth.uid() = user_id);
 
 -- ---------------------------------------------------------------------------
+-- grants
+-- ---------------------------------------------------------------------------
+-- RLS decides *which rows* a role may touch. It does not grant the right to
+-- touch the table at all — that is a separate, table-level privilege, and
+-- without it PostgREST returns `42501 permission denied for table X` before any
+-- policy is ever consulted.
+--
+-- This project's tables land with only REFERENCES/TRIGGER/TRUNCATE from the
+-- default privileges, so every grant the API depends on is written out here.
+-- The first integration run found this: not one table was reachable.
+--
+-- Read this block as the answer to "who can touch what", and keep it aligned
+-- with the policies above — a grant without a matching policy is harmless, but
+-- a policy without a matching grant is dead code that looks alive.
+--
+-- `anon` is deliberately absent throughout. The anonymous client exists to
+-- verify JWTs and proxy auth; it must never read an application table.
+
+-- Owner-scoped tables. Verbs mirror the policies exactly: no delete on accounts
+-- or connections (revoking marks a column), none on profiles (the cascade from
+-- auth.users owns removal).
+grant select, update                 on public.profiles             to authenticated;
+grant select, insert, update         on public.accounts             to authenticated;
+grant select, insert, update         on public.akahu_connections    to authenticated;
+grant select, insert, update         on public.device_registrations to authenticated;
+grant select, insert, update, delete on public.rules                to authenticated;
+
+-- Read-only for its owner: the server is the only writer (D8).
+grant select                         on public.billing_subscriptions to authenticated;
+
+-- akahu_tokens and apple_grants are absent on purpose. They carry deny-all RLS
+-- (no policies), and withholding the table privilege as well means a mistakenly
+-- added policy still would not expose them. Two locks, one key, and the key is
+-- the service role.
+
+-- The service role bypasses RLS but still needs the table privilege.
+grant all on all tables in schema public to service_role;
+
+-- ---------------------------------------------------------------------------
 -- triggers
 -- ---------------------------------------------------------------------------
 
