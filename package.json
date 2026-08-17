@@ -21,6 +21,7 @@
   "license": "UNLICENSED",
   "scripts": {
     "dev": "tsx watch src/server.ts",
+    "prebuild": "pnpm install --frozen-lockfile",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/server.js",
     "typecheck": "tsc -p tsconfig.json --noEmit",
