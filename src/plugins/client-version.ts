@@ -117,12 +117,16 @@ function parseBuild(rawHeader: string | undefined): number | null {
  *
  * App Store notifications come from Apple and Akahu's webhook will come from
  * Akahu; neither has an app build and gating them would silently break
- * subscription state and, later, transaction ingestion. Matched by prefix so a
+ * subscription state and, later, transaction ingestion. The address-confirmation
+ * bridge is here for the same reason from the other direction: it is opened by a
+ * browser following a link from an email, which has no app build to send and
+ * would otherwise be told to update an app it is not. Matched by prefix so a
  * sub-path cannot escape the exemption.
  */
 const EXEMPT_PREFIXES = [
   '/api/billing/apple/notifications',
   '/api/akahu/webhook',
+  '/auth/confirm',
   '/healthz',
   '/docs',
   '/openapi.json',

@@ -41,7 +41,7 @@ export class AuthService {
       options: {
         // Consumed by the handle_new_user() trigger to seed public.profiles.
         data: input.displayName ? { display_name: input.displayName } : {},
-        emailRedirectTo: config.auth.redirectUrl,
+        emailRedirectTo: config.auth.confirmUrl,
       },
     });
 

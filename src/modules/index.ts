@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
-import { API_PREFIX, AUTH_PREFIX } from '../config/index.js';
+import { API_PREFIX, AUTH_BRIDGE_PREFIX, AUTH_PREFIX } from '../config/index.js';
 import authRoutes from './auth/auth.routes.js';
+import confirmRoutes from './auth/confirm.routes.js';
 import accountsRoutes from './accounts/accounts.routes.js';
 import bankConnectionsRoutes from './bank-connections/bank-connections.routes.js';
 import billingRoutes from './billing/billing.routes.js';
@@ -18,6 +19,8 @@ import userRoutes from './user/user.routes.js';
  */
 const modules: Array<{ prefix: string; routes: FastifyPluginAsync }> = [
   { prefix: AUTH_PREFIX, routes: authRoutes as FastifyPluginAsync },
+  // Outside `/api`, and the only route here a browser reaches rather than the app.
+  { prefix: AUTH_BRIDGE_PREFIX, routes: confirmRoutes as FastifyPluginAsync },
   { prefix: `${API_PREFIX}/users`, routes: userRoutes as FastifyPluginAsync },
   { prefix: `${API_PREFIX}/accounts`, routes: accountsRoutes as FastifyPluginAsync },
   { prefix: `${API_PREFIX}/rules`, routes: rulesRoutes as FastifyPluginAsync },

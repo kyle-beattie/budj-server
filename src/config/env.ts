@@ -37,7 +37,14 @@ const envSchema = z.object({
 
   /** Public URL this API is served from; used for auth redirect links. */
   PUBLIC_URL: z.url(),
-  /** Where Supabase sends users after email confirmation / password reset. */
+  /**
+   * Where the address-confirmation email lands. Defaults to this server's own
+   * `/auth/confirm` bridge, which hands the session to the app's URL scheme.
+   * Override only to move the bridge; it must be listed under Supabase's
+   * Auth -> URL Configuration either way.
+   */
+  AUTH_CONFIRM_URL: z.url().optional(),
+  /** Where Supabase sends users after a password reset. Not the bridge. */
   AUTH_REDIRECT_URL: z.url().optional(),
 
   CORS_ORIGINS: csv.default([]),
