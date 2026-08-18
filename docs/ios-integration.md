@@ -180,6 +180,13 @@ that cannot fix their problem:
 `409 CLIENT_BUILD_BLOCKED` also exists, for a build barred from money-moving
 operations while the rest of the app keeps working. Nothing returns it yet.
 
+`503 AUTH_UNAVAILABLE` is **not** a fifth refusal — it is the only status worth
+retrying. It means the auth server was unreachable, or that Supabase rejected a
+token whose signature was fine because its `iat` was in the future (clock skew,
+seen on a token seconds old right after email confirmation). The session is
+valid, so do not sign the user out and do not send them anywhere: back off
+briefly and repeat the request.
+
 ## Money is a string, and `Double` will lose cents
 
 Amounts cross the wire as decimal strings (`"12.34"`), because Postgres stores
