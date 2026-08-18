@@ -15,6 +15,13 @@ const CHECK_VIOLATION = '23514';
 /** PostgREST's code when RLS rejects a write, or a filter matched no rows. */
 const RLS_VIOLATION = '42501';
 const NO_ROWS_RETURNED = 'PGRST116';
+/**
+ * PostgREST's JWT codes. These are decided *before* any policy runs, so they
+ * are never about the row being asked for.
+ */
+const JWT_INVALID = 'PGRST301';
+const JWT_ANON_DISABLED = 'PGRST302';
+const JWT_CLAIMS_INVALID = 'PGRST303';
 
 /**
  * Turns a PostgrestError into the application's error vocabulary.
@@ -41,6 +48,32 @@ export function toAppError(
       // RLS rejected the write. From the caller's perspective the row may as
       // well not exist — don't confirm that someone else's row is there.
       return new NotFoundError(resource);
+    case JWT_INVALID:
+    case JWT_ANON_DISABLED:
+      // PostgREST refused the token itself. `requireAuth` verified it against
+      // the JWKS, so reaching here means it expired in the gap or the project's
+      // signing key moved — either way, signing in again fixes it.
+      return new UnauthorizedError('Session is no longer valid');
+    case JWT_CLAIMS_INVALID:
+      /**
+       * A claim failed validation while the signature was fine — in practice
+       * `iat`/`nbf` in the future, i.e. clock skew between whatever minted the
+       * token and PostgREST. Observed on a freshly confirmed signup, where the
+       * token is seconds old.
+       *
+       * **Deliberately not a 401.** The credential is good and the caller did
+       * nothing wrong; re-authenticating hands them a *newer* token and makes
+       * it worse, so sending them to the sign-in screen is a dead end. This is
+       * transient and the right answer is to wait and retry, which is what 503
+       * means — the same code an unreachable auth server gets in
+       * `toAuthAppError`, for the same reason.
+       */
+      return new AppError('Authentication service unavailable', {
+        statusCode: 503,
+        code: 'AUTH_UNAVAILABLE',
+        details: { code: error.code },
+        cause: error,
+      });
     default:
       return new AppError(error.message, {
         statusCode: 500,
