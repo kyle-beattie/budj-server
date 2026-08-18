@@ -1,6 +1,6 @@
 # budj-server
 
-Budgeting API. Fastify 5 + TypeScript, with Supabase for Postgres and auth,
+budj app API. Fastify 5 + TypeScript, with Supabase for Postgres and auth,
 deployed to Render.
 
 ## Quick start
