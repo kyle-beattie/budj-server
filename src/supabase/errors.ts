@@ -55,6 +55,20 @@ export function toAppError(
 export function toAuthAppError(error: AuthError): AppError {
   const status = error.status ?? 500;
 
+  // auth-js reports a network failure as `AuthRetryableFetchError` with
+  // `status: 0` — the request never reached GoTrue, so there is no HTTP status
+  // to map. Passing 0 through reaches `reply.status(0)`, which Fastify rejects
+  // with FST_ERR_BAD_STATUS_CODE *inside* the error handler, so the caller gets
+  // an empty 500 instead of our error envelope. Anything outside the HTTP error
+  // range is treated as the auth server being unreachable.
+  if (status < 400 || status > 599) {
+    return new AppError('Authentication service unavailable', {
+      statusCode: 503,
+      code: 'AUTH_UNAVAILABLE',
+      cause: error,
+    });
+  }
+
   switch (status) {
     case 400:
       // GoTrue uses 400 for both bad input and bad credentials.

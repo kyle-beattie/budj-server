@@ -2,7 +2,7 @@
   "name": "budj-server",
   "version": "0.1.0",
   "private": true,
-  "description": "Budj API server \u2014 Fastify + TypeScript + Supabase (Postgres, PostgREST, Auth)",
+  "description": "budj API server \u2014 Fastify + TypeScript + Supabase (Postgres, PostgREST, Auth)",
   "type": "module",
   "main": "dist/server.js",
   "packageManager": "pnpm@9.15.0",
