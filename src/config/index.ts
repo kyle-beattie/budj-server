@@ -10,6 +10,17 @@ export const API_PREFIX = '/api';
 /** The auth proxy in front of Supabase Auth. */
 export const AUTH_PREFIX = `${API_PREFIX}/auth`;
 
+/**
+ * The address-confirmation bridge. Deliberately outside `/api`: it is opened by
+ * a browser following a link from an email, not by the app, and it answers HTML.
+ */
+export const AUTH_BRIDGE_PREFIX = '/auth';
+export const AUTH_CONFIRM_PATH = `${AUTH_BRIDGE_PREFIX}/confirm`;
+
+function trimTrailingSlash(url: string): string {
+  return url.endsWith('/') ? url.slice(0, -1) : url;
+}
+
 function parseBuildRange(raw: string | undefined): { from: number; to: number } | null {
   if (!raw) return null;
   const [from, to] = raw.split('-').map(Number) as [number, number];
@@ -31,7 +42,21 @@ export const config = {
     serviceRoleKey: env.SUPABASE_SERVICE_ROLE_KEY,
   },
   auth: {
-    /** Passed to Supabase as emailRedirectTo for confirmation and reset links. */
+    /**
+     * Where the address-confirmation email lands: the bridge, which hands the
+     * session to the app's URL scheme (D17 in `add-ios-onboarding`). Defaults to
+     * this server's own route, so the flow works without anything being
+     * configured — and an override still has to be listed under Supabase's
+     * Auth -> URL Configuration to be honoured.
+     */
+    confirmUrl: env.AUTH_CONFIRM_URL ?? `${trimTrailingSlash(env.PUBLIC_URL)}${AUTH_CONFIRM_PATH}`,
+    /**
+     * Password reset, which is **not** the bridge and must not become it. A
+     * recovery link also returns a session, so pointing it at the confirmation
+     * hand-off would sign someone in and tell them their email was confirmed
+     * when what they asked for was a new password. There is no reset screen in
+     * the app yet; until there is, this stays where it was.
+     */
     redirectUrl: env.AUTH_REDIRECT_URL ?? env.PUBLIC_URL,
   },
   cors: {

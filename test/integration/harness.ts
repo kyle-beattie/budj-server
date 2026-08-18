@@ -114,24 +114,45 @@ export async function signUpTestUser(
   email = `budj-test-${randomUUID()}@example.com`,
 ): Promise<TestUser> {
   const anon = anonClient();
+  const password = `Test-${randomUUID()}`;
   const { data, error } = await anon.auth.signUp({
     email,
-    password: `Test-${randomUUID()}`,
+    password,
     options: { data: metadata },
   });
 
   if (error) throw new Error(`sign-up failed: ${error.message}`);
-  if (!data.user || !data.session) {
-    throw new Error('sign-up returned no session — is enable_confirmations off in config.toml?');
-  }
+  if (!data.user) throw new Error('sign-up returned no user');
 
   createdUserIds.push(data.user.id);
+
+  let session = data.session;
+  if (!session) {
+    // `enable_confirmations` is on, which is how production runs and what the
+    // app's confirmation sheet exists for. Confirm through the admin API rather
+    // than asking the local stack to be configured differently from the real
+    // one — the sign-up above was still a real insert, so `handle_new_user` has
+    // already fired, which is the thing profiles.test.ts is here to check.
+    const admin = serviceClient();
+    const { error: confirmError } = await admin.auth.admin.updateUserById(data.user.id, {
+      email_confirm: true,
+    });
+    if (confirmError) throw new Error(`confirming the test user failed: ${confirmError.message}`);
+
+    const { data: signedIn, error: signInError } = await anon.auth.signInWithPassword({
+      email,
+      password,
+    });
+    if (signInError) throw new Error(`signing in the test user failed: ${signInError.message}`);
+    if (!signedIn.session) throw new Error('sign-in returned no session for a confirmed user');
+    session = signedIn.session;
+  }
 
   return {
     id: data.user.id,
     email,
-    accessToken: data.session.access_token,
-    client: userClient(data.session.access_token),
+    accessToken: session.access_token,
+    client: userClient(session.access_token),
   };
 }
 
