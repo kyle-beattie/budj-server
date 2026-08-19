@@ -217,6 +217,14 @@ suite pointed at a local `supabase start` stack.
 `render.yaml` describes the web service only — no Render database, and no
 pre-deploy migration step, since the schema lives in Supabase.
 
+**It is not applied.** The running service was created by hand in the dashboard,
+so the dashboard is the source of truth today and `render.yaml` records what the
+service *should* be. The intent is to adopt it as a blueprint, so keep the two in
+step: change one, change the other in the same sitting. Before adopting, diff the
+dashboard's environment variables against the file — anything set there and
+absent here vanishes on the first sync, and `src/config/env.ts` validates at
+import, so the service simply fails to boot.
+
 - Set `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_SERVICE_ROLE_KEY`,
   `AUTH_REDIRECT_URL` and `CORS_ORIGINS` in the dashboard — all are
   `sync: false` so they never land in the blueprint.
@@ -226,3 +234,18 @@ pre-deploy migration step, since the schema lives in Supabase.
   allow-list, or confirmation and reset links will be rejected.
 - Migrations are applied out of band with `pnpm db:push`, not during deploy.
 - `/docs` is disabled when `NODE_ENV=production`.
+
+**Do not run this on Render's free plan.** Free instances spin down after ~15
+minutes idle and take 50s or more to wake. The visible symptom is the app
+hanging on first open, but the expensive one is silent: Apple's POST to
+`/api/billing/apple/notifications` is what wakes the server, so it can time out.
+Nothing polls Apple — that webhook and the client's own transaction submission
+are the only two writers of the entitlement row — and StoreKit replays only
+unfinished purchases, so a refund or an expiry has no second path. A dropped
+notification leaves a lapsed user subscribed, their bank connection live, and
+Akahu billing for them.
+
+The region is `singapore`: closest to New Zealand users and to the Supabase
+project in `ap-southeast-2` (Sydney). Render has no Sydney region. A service's
+region cannot be changed after creation — moving it means recreating the service
+and re-entering every `sync: false` value.

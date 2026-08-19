@@ -10,13 +10,35 @@
 # `docs/key-runbook.md` covers what each secret protects, what is unrecoverable
 # if it is lost, and how to rotate it. Read it before setting or changing any of
 # the credential values.
+#
+# NOT YET APPLIED. The running service was created by hand in the Render
+# dashboard, so the dashboard is currently the source of truth and this file
+# only describes what it *should* be. It is kept accurate so that adopting it as
+# a blueprint is a no-op rather than a surprise — if you change the service in
+# the dashboard, change it here in the same sitting. Before adopting, diff the
+# dashboard's environment variables against the list below; a variable that
+# exists there and not here disappears on the first blueprint sync, and
+# `env.ts` turns that into a boot failure.
 
 services:
   - type: web
     name: budj-server
     runtime: node
+    # NOT `free`. Free instances spin down after ~15 minutes idle and take 50s
+    # or more to wake, which is a slow app on first open and a much worse
+    # problem for `/api/billing/apple/notifications`: Apple's POST is what wakes
+    # the server, so it can time out. Nothing polls Apple — that webhook and the
+    # client's own transaction submission are the only two writers of the
+    # entitlement row — and StoreKit's replay-on-launch only covers unfinished
+    # purchases. A refund or an expiry has no second path, so a dropped
+    # notification leaves a lapsed user subscribed, with their bank connection
+    # live and Akahu still billing for them.
     plan: starter
-    region: frankfurt
+    # Closest region to New Zealand users and to the Supabase project in
+    # `ap-southeast-2` (Sydney). Render has no Sydney region, and a service
+    # cannot be moved after creation — changing this means recreating it and
+    # re-entering every `sync: false` value.
+    region: singapore
     branch: main
     buildCommand: corepack enable && pnpm install --frozen-lockfile && pnpm build
     startCommand: pnpm start
@@ -49,6 +71,13 @@ services:
       # Must also be listed under Supabase Auth -> URL Configuration.
       - key: AUTH_REDIRECT_URL
         sync: false
+
+      # Deliberately unset. The email-confirmation bridge defaults to
+      # `PUBLIC_URL` + `/auth/confirm` (src/config/index.ts), which is already
+      # correct for this service. Set it only to move the bridge elsewhere —
+      # and list whatever it points at under Supabase Auth -> URL Configuration.
+      # - key: AUTH_CONFIRM_URL
+      #   sync: false
 
       # Comma-separated browser origins allowed to call this API.
       - key: CORS_ORIGINS
