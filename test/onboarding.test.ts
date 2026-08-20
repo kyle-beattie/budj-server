@@ -21,7 +21,7 @@ function serviceWith(options: {
           : ({
               status: 'active',
               expires_at: '2099-01-01T00:00:00.000Z',
-              plan_code: 'pro',
+              plan_code: 'standard',
               ...options.subscription,
             } as SubscriptionRow),
     } as unknown as BillingRepository,
@@ -44,7 +44,7 @@ describe('onboarding status', () => {
 
     expect(status.step).toBe('bank');
     expect(status.subscriptionActive).toBe(true);
-    expect(status.planCode).toBe('pro');
+    expect(status.planCode).toBe('standard');
   });
 
   it('reports ready once subscribed and connected', async () => {

@@ -33,8 +33,8 @@ describeIntegration('requireSubscription', () => {
     await new BillingRepository(serviceClient()).upsert({
       userId: subscribed.id,
       originalTransactionId: `otx-${subscribed.id}`,
-      productId: 'com.budj.pro.monthly',
-      planCode: 'pro',
+      productId: 'com.budj.standard.yearly',
+      planCode: 'standard',
       status: 'active',
       expiresAt: '2099-01-01T00:00:00.000Z',
       notificationUuid: null,
@@ -132,7 +132,7 @@ describeIntegration('requireSubscription', () => {
       headers: auth(subscribed),
     });
 
-    expect(response.json()).toMatchObject({ active: true, planCode: 'pro' });
+    expect(response.json()).toMatchObject({ active: true, planCode: 'standard' });
   });
 
   it('serves the catalogue from code, limits included', async () => {
@@ -143,8 +143,8 @@ describeIntegration('requireSubscription', () => {
     });
 
     const { data } = response.json() as { data: Array<{ code: string; maxConnections: number }> };
-    expect(data.map((plan) => plan.code).sort()).toEqual(['pro', 'starter']);
-    expect(data.find((plan) => plan.code === 'pro')?.maxConnections).toBe(10);
+    expect(data.map((plan) => plan.code)).toEqual(['standard']);
+    expect(data.find((plan) => plan.code === 'standard')?.maxConnections).toBe(10);
   });
 
   /** Purchase submission cannot require a subscription to reach. */
@@ -171,8 +171,8 @@ describeIntegration('requireSubscription', () => {
     await new BillingRepository(serviceClient()).upsert({
       userId: lapsed.id,
       originalTransactionId: `otx-${lapsed.id}`,
-      productId: 'com.budj.pro.monthly',
-      planCode: 'pro',
+      productId: 'com.budj.standard.yearly',
+      planCode: 'standard',
       status: 'active',
       expiresAt: '2020-01-01T00:00:00.000Z',
       notificationUuid: null,

@@ -26,7 +26,7 @@ async function signedTransaction(overrides: Record<string, unknown> = {}): Promi
   return new SignJWT({
     originalTransactionId: 'otx-1',
     transactionId: 'tx-1',
-    productId: 'com.budj.pro.monthly',
+    productId: 'com.budj.standard.yearly',
     bundleId: BUNDLE_ID,
     environment: 'Sandbox',
     expiresDate: FUTURE,
@@ -40,8 +40,8 @@ function row(overrides: Partial<SubscriptionRow> = {}): SubscriptionRow {
   return {
     user_id: 'user-1',
     original_transaction_id: 'otx-1',
-    product_id: 'com.budj.pro.monthly',
-    plan_code: 'pro',
+    product_id: 'com.budj.standard.yearly',
+    plan_code: 'standard',
     status: 'active',
     expires_at: new Date(FUTURE).toISOString(),
     last_notification_uuid: null,
@@ -80,7 +80,7 @@ describe('BillingService.submitTransaction', () => {
     expect(writes[0]).toMatchObject({
       userId: 'user-1',
       originalTransactionId: 'otx-1',
-      planCode: 'pro',
+      planCode: 'standard',
       status: 'active',
     });
     expect(view.active).toBe(true);
@@ -233,7 +233,7 @@ describe('BillingService.subscriptionFor', () => {
   it('reports an active subscription as active', async () => {
     const view = await serviceReturning(row()).subscriptionFor('user-1', NOW);
 
-    expect(view).toMatchObject({ planCode: 'pro', active: true });
+    expect(view).toMatchObject({ planCode: 'standard', active: true });
   });
 
   /**

@@ -142,8 +142,8 @@ describeIntegration('row level security', () => {
     const { error: seedError } = await serviceClient().from('billing_subscriptions').insert({
       user_id: bob.id,
       original_transaction_id: 'txn_bob_1',
-      product_id: 'com.budj.pro.monthly',
-      plan_code: 'pro',
+      product_id: 'com.budj.standard.yearly',
+      plan_code: 'standard',
       status: 'active',
     });
     expect(seedError).toBeNull();
@@ -152,14 +152,14 @@ describeIntegration('row level security', () => {
       .from('billing_subscriptions')
       .select('plan_code, status');
     expect(readable).toHaveLength(1);
-    expect(readable?.[0]?.plan_code).toBe('pro');
+    expect(readable?.[0]?.plan_code).toBe('standard');
 
     // Select-only: a user who could insert here would grant themselves a plan.
     const { error: writeError } = await alice.client.from('billing_subscriptions').insert({
       user_id: alice.id,
       original_transaction_id: 'txn_alice_forged',
-      product_id: 'com.budj.pro.monthly',
-      plan_code: 'pro',
+      product_id: 'com.budj.standard.yearly',
+      plan_code: 'standard',
       status: 'active',
     });
     expect(writeError?.code).toBe('42501');
@@ -174,8 +174,8 @@ describeIntegration('row level security', () => {
     const { error } = await serviceClient().from('billing_subscriptions').insert({
       user_id: alice.id,
       original_transaction_id: 'txn_bob_1',
-      product_id: 'com.budj.pro.monthly',
-      plan_code: 'pro',
+      product_id: 'com.budj.standard.yearly',
+      plan_code: 'standard',
       status: 'active',
     });
 

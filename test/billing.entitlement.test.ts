@@ -172,12 +172,12 @@ describe('shouldApply', () => {
 
 describe('the plan catalogue', () => {
   it('resolves a plan from its stored code', () => {
-    expect(planByCode('pro')).toBe(PLANS.pro);
+    expect(planByCode('standard')).toBe(PLANS.standard);
     expect(planByCode('enterprise')).toBeUndefined();
   });
 
   it('resolves a plan from an App Store product identifier', () => {
-    expect(planByProductId(PLANS.starter.productId)).toBe(PLANS.starter);
+    expect(planByProductId(PLANS.standard.productId)).toBe(PLANS.standard);
   });
 
   /** A notification for a product published after this build shipped. */
@@ -192,8 +192,8 @@ describe('the plan catalogue', () => {
   });
 
   it('reads limits from code, never from storage', () => {
-    expect(entitlementsFor('pro')).toMatchObject({ maxRules: 100, maxConnections: 10 });
-    expect(entitlementsFor('starter')?.effects).toEqual(['notify']);
+    expect(entitlementsFor('standard')).toMatchObject({ maxRules: 100, maxConnections: 10 });
+    expect(entitlementsFor('standard')?.effects).toEqual(['notify', 'transfer']);
   });
 
   it('gives every plan a distinct product identifier', () => {

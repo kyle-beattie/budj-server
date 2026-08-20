@@ -8,7 +8,21 @@
  * The App Store owns the price. This owns what the price buys.
  */
 
-export const PLAN_CODES = ['starter', 'pro'] as const;
+/**
+ * One plan, deliberately.
+ *
+ * The catalogue used to sell rule and connection counts. Those describe what a
+ * plan costs to run rather than what it is worth, and the cheaper tier could not
+ * initiate a transfer — which does not make it a cheaper Budj so much as a
+ * broken one, since moving money on a condition is the whole product. Upstream
+ * open-banking cost is per user rather than per rule, so tiering did not track
+ * cost either.
+ *
+ * `maxRules` and `maxConnections` survive as **abuse guardrails, not a product
+ * tier**. They are generous, never marketed, and exist so a single account
+ * cannot consume unbounded upstream capacity. Keep them enforced.
+ */
+export const PLAN_CODES = ['standard'] as const;
 export type PlanCode = (typeof PLAN_CODES)[number];
 
 /** Rule effects a plan permits. `transfer` is inert until add-rule-triggers. */
@@ -25,18 +39,15 @@ export interface Plan {
 }
 
 export const PLANS: Readonly<Record<PlanCode, Plan>> = {
-  starter: {
-    code: 'starter',
-    name: 'Starter',
-    productId: 'com.budj.starter.monthly',
-    maxRules: 10,
-    maxConnections: 2,
-    effects: ['notify'],
-  },
-  pro: {
-    code: 'pro',
-    name: 'Pro',
-    productId: 'com.budj.pro.monthly',
+  standard: {
+    code: 'standard',
+    name: 'Budj',
+    /**
+     * Yearly, not monthly. The buyer is self-employed and buying a deductible
+     * business tool whose renewal aligns with a tax year, and annual billing
+     * converts the largest churn risk into cash up front.
+     */
+    productId: 'com.budj.standard.yearly',
     maxRules: 100,
     maxConnections: 10,
     effects: ['notify', 'transfer'],

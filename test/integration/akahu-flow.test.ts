@@ -87,14 +87,14 @@ describeIntegration('akahu authorisation flow', () => {
   afterAll(cleanupTestUsers);
 
   it('issues an authorisation url', async () => {
-    const { authorisationUrl } = await serviceFor().startAuthorisation(user.id, PLANS.pro);
+    const { authorisationUrl } = await serviceFor().startAuthorisation(user.id, PLANS.standard);
 
     expect(authorisationUrl).toContain('https://oauth.akahu.nz/');
   });
 
   /** A state is a capability: whoever holds it can complete a connection. */
   it('keeps authorisation state invisible to every user client', async () => {
-    await serviceFor().startAuthorisation(user.id, PLANS.pro);
+    await serviceFor().startAuthorisation(user.id, PLANS.standard);
 
     const { data: asOwner } = await user.client.from('akahu_auth_states').select('state');
     const { data: asAnon } = await anonClient().from('akahu_auth_states').select('state');
@@ -103,7 +103,13 @@ describeIntegration('akahu authorisation flow', () => {
     expect(asAnon ?? []).toEqual([]);
   });
 
-  it('refuses a third connection on a plan permitting two', async () => {
+  /**
+   * There is one plan now, so this names its own limit rather than reaching for
+   * whichever tier happened to be small. The subject is the guardrail, not the
+   * catalogue — and inserting ten rows to exercise the real number would be
+   * testing the number instead of the check.
+   */
+  it('refuses a connection beyond the plan limit', async () => {
     const admin = serviceClient();
     for (const id of ['conn_a', 'conn_b']) {
       await admin.from('akahu_connections').insert({
@@ -120,7 +126,7 @@ describeIntegration('akahu authorisation flow', () => {
         new AkahuTokenRepository(serviceClient()),
         stubAkahu().client,
         silentLogger,
-      ).startAuthorisation(other.id, PLANS.starter),
+      ).startAuthorisation(other.id, { ...PLANS.standard, maxConnections: 2 }),
     ).rejects.toMatchObject({ code: 'PLAN_LIMIT_EXCEEDED' });
   });
 
@@ -132,7 +138,7 @@ describeIntegration('akahu authorisation flow', () => {
       const akahu = stubAkahu();
       const service = serviceFor(user.client, akahu.client);
 
-      const state = await extractState(await service.startAuthorisation(user.id, PLANS.pro));
+      const state = await extractState(await service.startAuthorisation(user.id, PLANS.standard));
       const result = await service.completeAuthorisation(user.id, { code: 'code-1', state });
 
       expect(akahu.exchanged).toEqual(['code-1']);
@@ -152,7 +158,7 @@ describeIntegration('akahu authorisation flow', () => {
     /** A replayed redirect must not connect a bank twice. */
     it('refuses a reused state', async () => {
       const service = serviceFor();
-      const state = await extractState(await service.startAuthorisation(user.id, PLANS.pro));
+      const state = await extractState(await service.startAuthorisation(user.id, PLANS.standard));
 
       await service.completeAuthorisation(user.id, { code: 'code-1', state });
 
@@ -173,7 +179,7 @@ describeIntegration('akahu authorisation flow', () => {
      */
     it('refuses a state issued to a different user', async () => {
       const service = serviceFor();
-      const state = await extractState(await service.startAuthorisation(user.id, PLANS.pro));
+      const state = await extractState(await service.startAuthorisation(user.id, PLANS.standard));
 
       await expect(
         service.completeAuthorisation(other.id, { code: 'code-1', state }),
@@ -208,7 +214,7 @@ describeIntegration('akahu authorisation flow', () => {
       ]);
       const service = serviceFor(fresh.client, akahu.client);
 
-      const state = await extractState(await service.startAuthorisation(fresh.id, PLANS.pro));
+      const state = await extractState(await service.startAuthorisation(fresh.id, PLANS.standard));
       await service.completeAuthorisation(fresh.id, { code: 'c', state });
 
       const { data } = await serviceClient()
@@ -231,7 +237,7 @@ describeIntegration('akahu authorisation flow', () => {
       ]);
       const service = serviceFor(fresh.client, akahu.client);
 
-      const state = await extractState(await service.startAuthorisation(fresh.id, PLANS.pro));
+      const state = await extractState(await service.startAuthorisation(fresh.id, PLANS.standard));
       const result = await service.completeAuthorisation(fresh.id, { code: 'c', state });
 
       expect(result.accounts).toBe(2);
@@ -242,7 +248,7 @@ describeIntegration('akahu authorisation flow', () => {
       const akahu = stubAkahu([account({ _id: 'acc_1' }), account({ _id: 'acc_2' })]);
       const service = serviceFor(fresh.client, akahu.client);
 
-      const state = await extractState(await service.startAuthorisation(fresh.id, PLANS.pro));
+      const state = await extractState(await service.startAuthorisation(fresh.id, PLANS.standard));
       await service.completeAuthorisation(fresh.id, { code: 'c', state });
 
       // Akahu stops reporting the second account.
@@ -265,7 +271,7 @@ describeIntegration('akahu authorisation flow', () => {
       const akahu = stubAkahu([account({ _id: 'acc_1' }), account({ _id: 'acc_2' })]);
       const service = serviceFor(fresh.client, akahu.client);
 
-      const state = await extractState(await service.startAuthorisation(fresh.id, PLANS.pro));
+      const state = await extractState(await service.startAuthorisation(fresh.id, PLANS.standard));
       await service.completeAuthorisation(fresh.id, { code: 'c', state });
 
       akahu.accounts = [account({ _id: 'acc_1' })];
@@ -286,7 +292,7 @@ describeIntegration('akahu authorisation flow', () => {
       const akahu = stubAkahu();
       const service = serviceFor(fresh.client, akahu.client);
 
-      const state = await extractState(await service.startAuthorisation(fresh.id, PLANS.pro));
+      const state = await extractState(await service.startAuthorisation(fresh.id, PLANS.standard));
       await service.completeAuthorisation(fresh.id, { code: 'c', state });
 
       const connections = await service.list(fresh.id, false);
@@ -308,7 +314,7 @@ describeIntegration('akahu authorisation flow', () => {
       const akahu = stubAkahu();
       const ownerService = serviceFor(owner.client, akahu.client);
 
-      const state = await extractState(await ownerService.startAuthorisation(owner.id, PLANS.pro));
+      const state = await extractState(await ownerService.startAuthorisation(owner.id, PLANS.standard));
       await ownerService.completeAuthorisation(owner.id, { code: 'c', state });
       const [connection] = await ownerService.list(owner.id, false);
 
