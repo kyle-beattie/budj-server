@@ -28,8 +28,8 @@ describeIntegration('devices and onboarding', () => {
     await new BillingRepository(serviceClient()).upsert({
       userId: user.id,
       originalTransactionId: `otx-${user.id}`,
-      productId: 'com.budj.pro.monthly',
-      planCode: 'pro',
+      productId: 'com.budj.standard.yearly',
+      planCode: 'standard',
       status: 'active',
       expiresAt: '2099-01-01T00:00:00.000Z',
       notificationUuid: null,
@@ -224,8 +224,8 @@ describeIntegration('devices and onboarding', () => {
       await new BillingRepository(serviceClient()).upsert({
         userId: user.id,
         originalTransactionId: `otx-${user.id}`,
-        productId: 'com.budj.pro.monthly',
-        planCode: 'pro',
+        productId: 'com.budj.standard.yearly',
+        planCode: 'standard',
         status: 'active',
         expiresAt: '2099-01-01T00:00:00.000Z',
         notificationUuid: null,

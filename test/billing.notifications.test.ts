@@ -45,7 +45,7 @@ async function notification(options: {
   const transaction = await sign({
     originalTransactionId: options.originalTransactionId ?? 'otx-1',
     transactionId: 'tx-1',
-    productId: options.productId ?? 'com.budj.pro.monthly',
+    productId: options.productId ?? 'com.budj.standard.yearly',
     expiresDate: options.expiresDate ?? Date.parse('2026-09-17T00:00:00Z'),
   });
 
@@ -62,8 +62,8 @@ function existingRow(overrides: Partial<SubscriptionRow> = {}): SubscriptionRow 
   return {
     user_id: 'user-1',
     original_transaction_id: 'otx-1',
-    product_id: 'com.budj.pro.monthly',
-    plan_code: 'pro',
+    product_id: 'com.budj.standard.yearly',
+    plan_code: 'standard',
     status: 'active',
     expires_at: '2026-09-17T00:00:00.000Z',
     last_notification_uuid: null,
@@ -126,7 +126,7 @@ describe('AppleNotificationService', () => {
     expect(writes[0]).toMatchObject({
       userId: 'user-1',
       status: 'active',
-      planCode: 'pro',
+      planCode: 'standard',
       originalTransactionId: 'otx-1',
     });
     expect(revoked).toEqual([]);
@@ -253,12 +253,19 @@ describe('AppleNotificationService', () => {
   it('keeps the stored plan when Apple names a product this build predates', async () => {
     await handle(await notification({ type: 'DID_RENEW', productId: 'com.budj.future.annual' }));
 
-    expect(writes[0]?.planCode).toBe('pro');
+    expect(writes[0]?.planCode).toBe('standard');
   });
 
-  it('follows the user to a different plan when the product is known', async () => {
-    await handle(await notification({ type: 'DID_RENEW', productId: 'com.budj.starter.monthly' }));
+  /**
+   * There is one plan today, so this cannot assert a move between two. What it
+   * does assert is the mechanism that would carry one: the stored code comes
+   * from resolving Apple's product identifier, not from what was already there.
+   */
+  it('takes the plan from the product Apple named, not from the stored row', async () => {
+    await handle(
+      await notification({ type: 'DID_RENEW', productId: 'com.budj.standard.yearly' }),
+    );
 
-    expect(writes[0]?.planCode).toBe('starter');
+    expect(writes[0]?.planCode).toBe('standard');
   });
 });

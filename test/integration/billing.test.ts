@@ -60,8 +60,8 @@ describeIntegration('billing entitlement', () => {
     await repository.upsert({
       userId: alice.id,
       originalTransactionId: 'otx-alice',
-      productId: 'com.budj.pro.monthly',
-      planCode: 'pro',
+      productId: 'com.budj.standard.yearly',
+      planCode: 'standard',
       status: 'active',
       expiresAt: '2026-09-17T00:00:00.000Z',
       notificationUuid: 'uuid-1',
@@ -69,7 +69,7 @@ describeIntegration('billing entitlement', () => {
     });
 
     const row = await repository.findByUserId(alice.id);
-    expect(row).toMatchObject({ plan_code: 'pro', status: 'active' });
+    expect(row).toMatchObject({ plan_code: 'standard', status: 'active' });
   });
 
   /** The join a notification uses: Apple knows nothing about our users. */
@@ -82,8 +82,8 @@ describeIntegration('billing entitlement', () => {
     await repository.upsert({
       userId: alice.id,
       originalTransactionId: 'otx-alice',
-      productId: 'com.budj.pro.monthly',
-      planCode: 'pro',
+      productId: 'com.budj.standard.yearly',
+      planCode: 'standard',
       status: 'expired',
       expiresAt: '2026-09-17T00:00:00.000Z',
       notificationUuid: 'uuid-2',
@@ -108,8 +108,8 @@ describeIntegration('billing entitlement', () => {
       repository.upsert({
         userId: bob.id,
         originalTransactionId: 'otx-alice',
-        productId: 'com.budj.pro.monthly',
-        planCode: 'pro',
+        productId: 'com.budj.standard.yearly',
+        planCode: 'standard',
         status: 'active',
         expiresAt: null,
         notificationUuid: 'uuid-3',
@@ -127,7 +127,7 @@ describeIntegration('billing entitlement', () => {
 
     const { error } = await alice.client
       .from('billing_subscriptions')
-      .update({ plan_code: 'pro', status: 'active' })
+      .update({ plan_code: 'standard', status: 'active' })
       .eq('user_id', alice.id);
 
     // Select-only: no update policy, so nothing is written.
