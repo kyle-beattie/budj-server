@@ -86,13 +86,3 @@ export function entitlementsFor(planCode: string | null | undefined): Plan | nul
   if (!planCode) return null;
   return planByCode(planCode) ?? null;
 }
-
-/**
- * The codes this catalogue used to have.
- *
- * A row still storing one of these resolves to no entitlement at all, which
- * reads as an unsubscribed user. That is the correct behaviour for an unknown
- * code and the wrong outcome for a paying customer, so if any such row ever
- * existed it must be migrated rather than left to fail quietly.
- */
-export const RETIRED_PLAN_CODES = ['starter', 'pro'] as const;

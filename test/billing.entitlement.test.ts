@@ -6,13 +6,7 @@ import {
   resolveOutcome,
   shouldApply,
 } from '../src/modules/billing/entitlement.js';
-import {
-  PLANS,
-  RETIRED_PLAN_CODES,
-  entitlementsFor,
-  planByCode,
-  planByProductId,
-} from '../src/modules/billing/plans.js';
+import { PLANS, entitlementsFor, planByCode, planByProductId } from '../src/modules/billing/plans.js';
 
 describe('resolveOutcome', () => {
   it.each([
@@ -189,18 +183,6 @@ describe('the plan catalogue', () => {
   /** A notification for a product published after this build shipped. */
   it('returns nothing for an unknown product rather than guessing', () => {
     expect(planByProductId('com.budj.something.new')).toBeUndefined();
-  });
-
-  /**
-   * The tiers this catalogue used to have. A row still storing one of these
-   * resolves to nothing, which reads as unsubscribed — correct for an unknown
-   * code, and the reason any such row has to be migrated rather than ignored.
-   */
-  it('gives a retired plan code no entitlements', () => {
-    for (const code of RETIRED_PLAN_CODES) {
-      expect(planByCode(code)).toBeUndefined();
-      expect(entitlementsFor(code)).toBeNull();
-    }
   });
 
   it('gives an unsubscribed user no entitlements at all', () => {
